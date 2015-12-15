@@ -1,0 +1,4 @@
+<div class="user">
+  <img class="user--avatar" src="{{avatar}}">
+  <h2 class="user--name">{{name}}</h2>
+</div>
