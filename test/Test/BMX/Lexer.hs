@@ -1,28 +1,41 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -Wwarn #-}
 module Test.BMX.Lexer where
 
+import qualified Data.Attoparsec.Text as A
 import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
-import           BMX.Lexer
+import           BMX.Lexer as Lexer
 import           BMX.Data (Token (..), Format (..), renderToken)
 
-import           Test.BMX.Arbitrary (genTokens, validContent)
+import           Test.BMX.Arbitrary
 
 import           P
 
+
+roundtrip gen parser = forAll gen $ \ts ->
+  let pretty = foldMap renderToken ts
+      parsed = A.parseOnly parser pretty
+  in  parsed === Right ts
+
 --------------------------------------------------------------------------------
+
 prop_none = once $ tokenise T.empty == Right []
 
-prop_content t = validContent t ==>
-  tokenise t == Right [Content t]
+prop_roundtrip_content = roundtrip genTokenContent Lexer.content
 
-prop_lex_pretty_lex = forAll genTokens $ \ts ->
-  let pretty = foldMap renderToken ts
-  in  tokenise pretty == Right ts
+prop_roundtrip_muexpr = roundtrip genTokenMuExpr Lexer.mu
+
+prop_roundtrip_comment = roundtrip genTokenComment Lexer.mu
+
+prop_roundtrip_rawblock = roundtrip genTokenRawBlock Lexer.mu
+
+prop_roundtrip_all = roundtrip genTokens Lexer.tokens
+
 
 --------------------------------------------------------------------------------
 prop_block_comment = once $

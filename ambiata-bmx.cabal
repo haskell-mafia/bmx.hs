@@ -16,6 +16,7 @@ library
                      , transformers                    >= 0.3        && < 0.5
                      , either                          >= 4.3        && < 4.5
                      , ambiata-p
+                     , bifunctors
                      , text                            == 1.2.*
                      , attoparsec                      == 0.13.*
 
@@ -65,3 +66,4 @@ test-suite test
                      , QuickCheck
                      , quickcheck-instances            == 0.3.*
                      , text
+                     , attoparsec

@@ -1,7 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data (
-  module X
+    module X
   ) where
 
 import           BMX.Data.Token as X
