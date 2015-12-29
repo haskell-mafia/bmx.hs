@@ -66,7 +66,7 @@ prop_block_empty = once $
   tokenise "{{#}}" == Right [OpenBlock Verbatim, Close Verbatim]
 
 prop_block_empty_star = once $
-  tokenise "{{#*}}" == Right [OpenBlock Verbatim, Close Verbatim]
+  tokenise "{{#*}}" == Right [OpenDecoratorBlock Verbatim, Close Verbatim]
 
 prop_end_block_empty = once $
   tokenise "{{/}}" == Right [OpenEndBlock Verbatim, Close Verbatim]
@@ -77,9 +77,11 @@ prop_partial_empty = once $
 prop_partial_block_empty = once $
   tokenise "{{#>}}" == Right [OpenPartialBlock Verbatim, Close Verbatim]
 
-prop_ordinary_empty = once $
-  tokenise "{{&}}" == Right [Open Verbatim, Close Verbatim]
+prop_unescaped_empty = once $
+  tokenise "{{&}}" == Right [OpenUnescaped Verbatim, Close Verbatim]
 
+prop_ordinary_empty = once $
+  tokenise "{{}}" == Right [Open Verbatim, Close Verbatim]
 
 return []
 tests = $quickCheckAll

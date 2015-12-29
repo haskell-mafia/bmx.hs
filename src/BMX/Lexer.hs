@@ -137,6 +137,8 @@ unescapedMu lf = do
 
 -- | A raw block: All content in between {{{{helper foo bar}}}} and {{{{/helper}}}} is
 -- handed directly to helper without any mustache-processing.
+-- Nested raw blocks are supported (ignored), but need to be balanced.
+-- e.g. {{{{a}}}} {{{{this does not work}}}} {{{{/a}}}}
 rawBlock :: Format -> Parser [Token]
 rawBlock Strip = fail "raw blocks can't perform formatting"
 rawBlock Verbatim = do
@@ -174,13 +176,14 @@ rawBlock Verbatim = do
 
 openPs :: Format -> Parser Token
 openPs f = openPartial f
-     <|> openPartialBlock f
-     <|> openBlock f
-     <|> openEndBlock f
-     <|> openUnescaped f
-     <|> openOrdinary f
-     <|> openInverse f
-     <|> openInverseChain f
+       <|> openPartialBlock f
+       <|> openBlock f
+       <|> openEndBlock f
+       <|> openUnescaped f
+       <|> openUnescaped' f
+       <|> openInverse f
+       <|> openInverseChain f
+       <|> openOrdinary f
 
 exprPs :: Parser Token
 exprPs = skipSpace *> eps <* skipSpace
@@ -208,17 +211,32 @@ openPartial f = char '>' *> pure (OpenPartial f)
 openPartialBlock :: Format -> Parser Token
 openPartialBlock f = string "#>" *> pure (OpenPartialBlock f)
 
+-- | {{# - block syntax
+--  {{#* - decorator block
 openBlock :: Format -> Parser Token
-openBlock f = char '#' *> option '*' (char '*') *> pure (OpenBlock f)
+openBlock f = do
+  _ <- char '#'
+  option (OpenBlock f) (char '*' *> pure (OpenDecoratorBlock f))
 
+-- | End of a block's scope.
+-- e.g. {{/
 openEndBlock :: Format -> Parser Token
 openEndBlock f = char '/' *> pure (OpenEndBlock f)
 
+-- | A value that should not be HTML-escaped
+-- e.g. {{{body}}}
 openUnescaped :: Format -> Parser Token
 openUnescaped f = char '{' *> pure (OpenUnescaped f)
 
+-- | Alternate, undocumented format for unescaped output
+-- e.g. {{&body}}
+openUnescaped' :: Format -> Parser Token
+openUnescaped' f = char '&' *> pure (OpenUnescaped f)
+
+-- | {{ - ordinary expression
+--  {{* - decorator
 openOrdinary :: Format -> Parser Token
-openOrdinary f = char '&' *> pure (Open f)
+openOrdinary f = option (Open f) (char '*' *> pure (OpenDecorator f))
 
 openInverse :: Format -> Parser Token
 openInverse f = char '^' *> pure (OpenInverse f)

@@ -53,8 +53,18 @@ genTokenMustache = oneof [
 genTokenMuExpr :: Gen [Token]
 genTokenMuExpr = do
   f1 <- arbitrary
-  o  <- elements [Open, OpenPartial, OpenPartialBlock, OpenBlock, OpenEndBlock,
-                  OpenUnescaped, OpenInverse, OpenInverseChain]
+  o  <- elements [
+            Open
+          , OpenPartial
+          , OpenPartialBlock
+          , OpenBlock
+          , OpenEndBlock
+          , OpenUnescaped
+          , OpenInverse
+          , OpenInverseChain
+          , OpenDecorator
+          , OpenDecoratorBlock
+          ]
   body <- genTokenExpr
   c  <- Close <$> arbitrary
   pure (o f1 : body <> [c])
