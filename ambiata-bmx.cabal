@@ -19,6 +19,10 @@ library
                      , bifunctors
                      , text                            == 1.2.*
                      , attoparsec                      == 0.13.*
+                     , safe                            == 0.3.*
+                     , array                           == 0.5.*
+
+  build-tools:         happy
 
   ghc-options:
                        -Wall
@@ -31,9 +35,11 @@ library
                        BMX
                        BMX.Data
                        BMX.Lexer
+                       BMX.Parser
 
   other-modules:
                        BMX.Data.Token                       
+                       BMX.Data.AST
 
 
 executable bmx

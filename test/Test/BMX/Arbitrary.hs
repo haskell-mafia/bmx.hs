@@ -15,6 +15,93 @@ import           BMX.Lexer
 
 import           P
 
+--------------------------------------------------------------------------------
+-- AST / parser generators
+
+instance Arbitrary Program where
+  arbitrary = Program <$> listOf arbitrary
+
+instance Arbitrary Stmt where
+  arbitrary = oneof [
+      Mustache <$> arbitrary <*> bareExpr
+    , MustacheUnescaped <$> arbitrary <*> bareExpr
+    , Partial <$> arbitrary <*> bareExpr
+    , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
+    , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverseChain
+    , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverse
+    , RawBlock <$> bareExpr <*> rawContent
+    , ContentStmt <$> arbitrary `suchThat` validContent
+    , CommentStmt <$> arbitrary <*> arbitrary `suchThat` validComment
+    , Decorator <$> arbitrary <*> bareExpr
+    , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
+    ]
+    where
+      bparams = oneof [pure Nothing, arbitrary]
+      body = smallList arbitrary
+      inverseChain = sized goInverse
+      goInverse 0 = pure Nothing
+      goInverse n = oneof [pure Nothing, inverse, inverseChain' n]
+      inverseChain' n = fmap Just $
+        InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
+      inverse = fmap Just $ Inverse <$> arbitrary <*> body
+
+instance Arbitrary Expr where
+  arbitrary = oneof [
+      Lit <$> arbitrary
+    , bareExpr
+    ]
+
+bareExpr :: Gen Expr
+bareExpr = SExp <$> arbitrary <*> smallList arbitrary <*> arbitrary
+
+smallList :: Gen a -> Gen [a]
+smallList g = sized go
+  where
+    go 0 = pure []
+    go n = (:) <$> g <*> go (n `div` 2)
+
+instance Arbitrary Literal where
+  arbitrary = oneof [
+      PathL <$> arbitrary
+    , StringL <$> arbitrary `suchThat` validString
+    , NumberL <$> arbitrary
+    , BooleanL <$> arbitrary
+    , pure UndefinedL
+    , pure NullL
+    ]
+
+instance Arbitrary BlockParams where
+  arbitrary = BlockParams <$> listOf1 name
+    where
+      -- A 'simple' name, i.e. an ID without path components
+      name = PathL . Path . (:[]) . PathID <$> arbitrary `suchThat` validId
+
+instance Arbitrary Path where
+  arbitrary = do
+    p <- elements [Path, DataPath]
+    i <- PathID <$> arbitrary `suchThat` validId
+    cs <- listOf pair
+    pure $ p (i : mconcat cs)
+    where
+      ident = PathID <$> arbitrary `suchThat` validId
+      sep = PathSep <$> elements ['.', '/']
+      pair = do
+        s <- sep
+        i <- ident
+        pure [s, i]
+
+instance Arbitrary Hash where
+  arbitrary = Hash <$> listOf1 arbitrary
+
+instance Arbitrary HashPair where
+  arbitrary = HashPair <$> arbitrary `suchThat` validId <*> arbitrary
+
+instance Arbitrary Fmt where
+  arbitrary = Fmt <$> arbitrary <*> arbitrary
+
+
+--------------------------------------------------------------------------------
+-- Token / lexer generators
 
 instance Arbitrary Format where
   arbitrary = elements [Strip, Verbatim]
@@ -65,24 +152,34 @@ genTokenMuExpr = do
           , OpenDecorator
           , OpenDecoratorBlock
           ]
-  body <- genTokenExpr
+  body <- genTokenExpr1
   c  <- Close <$> arbitrary
   pure (o f1 : body <> [c])
 
 -- | Generate a sensible Handlebars expression (inside a partial block etc)
 genTokenExpr :: Gen [Token]
-genTokenExpr = oneof [genTokenId, atoms]
-  where atoms = listOf (oneof [
-            pure OpenSExp
-          , pure CloseSExp
-          , Number <$> arbitrary
-          , pure Equals
-          , pure Data
-          , pure Undefined
-          , pure Null
-          , pure OpenBlockParams
-          , pure CloseBlockParams
-          ])
+genTokenExpr = do
+  list <- listOf $ oneof [genTokenId, (:[]) <$> atoms]
+  pure (mconcat list)
+
+genTokenExpr1 :: Gen [Token]
+genTokenExpr1 = do
+  list <- listOf1 $ oneof [genTokenId, (:[]) <$> atoms]
+  pure (mconcat list)
+
+atoms :: Gen Token
+atoms = oneof [
+    pure OpenSExp
+  , pure CloseSExp
+  , Number <$> arbitrary
+  , String <$> arbitrary `suchThat` validString
+  , pure Equals
+  , pure Data
+  , pure Undefined
+  , pure Null
+  , pure OpenBlockParams
+  , pure CloseBlockParams
+  ]
 
 -- | The '.' '..' '/' characters are parsed differently when bare / mid-ID
 genTokenId :: Gen [Token]
@@ -130,15 +227,17 @@ genTokenComment = oneof [genCommentBlock, genComment]
 genTokenRawBlock :: Gen [Token]
 genTokenRawBlock = do
   body <- genTokenExpr
-  spam <- RawContent <$> prettyMustache
+  spam <- RawContent <$> rawContent
   c    <- CloseRaw <$> weakId
   pure (OpenRawBlock : body <> [CloseRawBlock, spam, c])
   where
     weakId = arbitrary `suchThat` alpha
     alpha = T.all isAlpha
-    prettyMustache = do
-      ts <- sized $ \s -> resize (min s 5) genTokens
-      pure (T.concat $ fmap renderToken ts)
+
+rawContent :: Gen Text
+rawContent = do
+  ts <- sized $ \s -> resize (min s 5) genTokens
+  pure (T.concat $ fmap renderToken ts)
 
 -- | Allow only escaped Mustache expressions
 noMustaches :: Text -> Bool
@@ -182,3 +281,9 @@ validId t = and [
   , not (T.null t)
   , not (isNumber (T.head t))
   ]
+
+validString :: Text -> Bool
+validString t = and (fmap escaped splits)
+  where
+    splits = T.breakOnAll "\"" t
+    escaped (s, _) = and [T.takeEnd 1 s == "\\", T.takeEnd 2 s /= "\\\\"]

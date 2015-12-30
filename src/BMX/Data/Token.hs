@@ -5,6 +5,7 @@ module BMX.Data.Token (
     Token (..)
   , Format (..)
   , renderToken
+  , renderFormat
   ) where
 
 import           Data.Text (Text)

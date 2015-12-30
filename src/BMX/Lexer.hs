@@ -23,7 +23,7 @@ import           P hiding (null)
 
 
 newtype LexError = LexError { renderLexError :: Text }
-  deriving (Eq)
+  deriving (Eq, Show)
 
 
 tokenise :: Text -> Either LexError [Token]
