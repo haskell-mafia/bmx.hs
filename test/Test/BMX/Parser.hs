@@ -21,7 +21,7 @@ prop_parse_roundtrip p =
   let pretty = renderProgram p
       lexed = tokenise pretty
       parsed = either (Left . ParseError . (<>) "Lexer error: " . renderLexError) parse lexed
-  in  parsed === Right p
+  in  trace (show pretty) $ parsed === Right p
 
 --------------------------------------------------------------------------------
 -- dopey regression tests

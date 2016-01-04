@@ -1,18 +1,22 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.AST where
 
+import           Data.Data
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           GHC.Generics
 
 import           BMX.Data.Token
 
 import           P
 
 newtype Program = Program { unTemplate :: [Stmt] }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Stmt
   = Mustache Fmt Expr
@@ -28,12 +32,12 @@ data Stmt
   | CommentStmt Fmt Text
   | Decorator Fmt Expr
   | DecoratorBlock Fmt Fmt Expr [Stmt]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Expr
   = Lit Literal
   | SExp Literal [Expr] Hash
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Literal
   = PathL Path
@@ -42,29 +46,29 @@ data Literal
   | BooleanL Bool
   | UndefinedL
   | NullL
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data BlockParams = BlockParams [Literal]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Path
   = Path [PathComponent]
   | DataPath [PathComponent]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data PathComponent
   = PathID Text
   | PathSep Char
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Hash = Hash [HashPair]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data HashPair = HashPair Text Expr
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Fmt = Fmt Format Format
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 emptyHash :: Hash
 emptyHash = Hash []

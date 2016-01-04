@@ -1,17 +1,26 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.Token (
-    Token (..)
+    Tokens (..)
+  , Token (..)
   , Format (..)
   , renderToken
   , renderFormat
   ) where
 
+import           Data.Data
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           GHC.Generics
 
 import           P
+
+newtype Tokens = Tokens { unTokens :: [Token] }
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 data Token
   -- * Raw Web Content
@@ -54,13 +63,13 @@ data Token
   | Null
   | OpenBlockParams
   | CloseBlockParams
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 -- | Formatting control
 data Format
   = Strip
   | Verbatim
-  deriving (Show, Eq)
+  deriving (Show, Eq, Generic, Data, Typeable)
 
 
 renderToken :: Token -> Text
@@ -93,7 +102,7 @@ renderToken = \case
   ID t                 -> t
   SegmentID t          -> "[" <> t <> "]"
   String t             -> " \"" <> T.replace "\"" "\\\"" t <> "\" "
-  Number i             -> T.pack (show i) <> " "
+  Number i             -> " " <> T.pack (show i) <> " "
   Boolean b            -> " " <> (T.toLower . T.pack $ show b) <> " "
   Sep c                -> T.singleton c
   OpenSExp             -> " ("

@@ -276,14 +276,11 @@ PathComponents :
   | ident                          { PathID $1 : [] }
 
 Hash :
-    HashPairs                      { Hash (reverse $1) }
+    HashPairs                      { Hash $1 }
 
 HashPairs :
-    HashPairs HashPair             { $2 : $1 }
+    ident equals Expr HashPairs    { HashPair $1 $3 : $4 }
   | {- empty -}                    { [] }
-
-HashPair :
-    ident equals Expr              { HashPair $1 $3 }
 
 BlockParams :
     openBlockParams Names closeBlockParams { Just $ BlockParams (reverse $2) }
@@ -310,8 +307,7 @@ exprHelper (SExp lit _ _) = litHelper lit
 exprHelper (Lit lit) = litHelper lit
 
 litHelper :: Literal -> Maybe Text
-litHelper (PathL p) = Just (renderPath p)
-litHelper _         = Nothing
+litHelper = Just . renderLiteral
 
 rawBlockError :: Maybe Text -> Text -> ParseError
 rawBlockError Nothing t = ParseError "Raw block: Invalid helper"

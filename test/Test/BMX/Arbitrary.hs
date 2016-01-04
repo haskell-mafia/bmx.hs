@@ -1,10 +1,13 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Test.BMX.Arbitrary where
 
-import           Data.Char (isNumber, isAlpha)
-import           Data.List (intersperse)
+import           Data.Char (isAlpha)
+import           Data.Data
+import           Data.Generics.Schemes
+import           Data.List (intersperse, zipWith)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
@@ -19,7 +22,7 @@ import           P
 -- AST / parser generators
 
 instance Arbitrary Program where
-  arbitrary = Program <$> listOf arbitrary
+  arbitrary = Program <$> smallList arbitrary
 
 instance Arbitrary Stmt where
   arbitrary = oneof [
@@ -37,28 +40,33 @@ instance Arbitrary Stmt where
     ]
     where
       bparams = oneof [pure Nothing, arbitrary]
-      body = smallList arbitrary
-      inverseChain = sized goInverse
+      body = smaller (smallList arbitrary)
+      inverseChain = smaller $ sized goInverse
       goInverse 0 = pure Nothing
       goInverse n = oneof [pure Nothing, inverse, inverseChain' n]
       inverseChain' n = fmap Just $
         InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
       inverse = fmap Just $ Inverse <$> arbitrary <*> body
+  shrink = genericShrink
 
 instance Arbitrary Expr where
   arbitrary = oneof [
       Lit <$> arbitrary
-    , bareExpr
+    , smaller bareExpr
     ]
+  shrink = genericShrink
 
 bareExpr :: Gen Expr
-bareExpr = SExp <$> arbitrary <*> smallList arbitrary <*> arbitrary
+bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> arbitrary
 
 smallList :: Gen a -> Gen [a]
 smallList g = sized go
   where
     go 0 = pure []
     go n = (:) <$> g <*> go (n `div` 2)
+
+smaller :: Gen a -> Gen a
+smaller g = sized $ \s -> resize (s `div` 2) g
 
 instance Arbitrary Literal where
   arbitrary = oneof [
@@ -69,12 +77,14 @@ instance Arbitrary Literal where
     , pure UndefinedL
     , pure NullL
     ]
+  shrink = genericShrink
 
 instance Arbitrary BlockParams where
   arbitrary = BlockParams <$> listOf1 name
     where
       -- A 'simple' name, i.e. an ID without path components
       name = PathL . Path . (:[]) . PathID <$> arbitrary `suchThat` validId
+  shrink = genericShrink
 
 instance Arbitrary Path where
   arbitrary = do
@@ -89,19 +99,152 @@ instance Arbitrary Path where
         s <- sep
         i <- ident
         pure [s, i]
+  shrink = genericShrink
+
+instance Arbitrary PathComponent where
+  arbitrary = oneof [
+      PathID <$> arbitrary `suchThat` validId
+    , PathSep <$> elements ['.', '/']
+    ]
+  shrink = genericShrink
 
 instance Arbitrary Hash where
-  arbitrary = Hash <$> listOf1 arbitrary
+  arbitrary = Hash <$> smallList arbitrary
+  shrink = genericShrink
 
 instance Arbitrary HashPair where
-  arbitrary = HashPair <$> arbitrary `suchThat` validId <*> arbitrary
+  arbitrary = HashPair <$> arbitrary `suchThat` validId <*> smaller arbitrary
+  shrink = genericShrink
 
 instance Arbitrary Fmt where
   arbitrary = Fmt <$> arbitrary <*> arbitrary
 
-
 --------------------------------------------------------------------------------
 -- Token / lexer generators
+
+instance Arbitrary Tokens where
+  arbitrary = Tokens <$> genTokens
+  shrink (Tokens ts) = mconcat [
+      nodrop
+    , dropexprs
+    , dropids
+    , dropseqs
+    ]
+    where
+      numtok = length ts
+      shrunk = recursivelyShrink ts
+      nodrop = Tokens <$> filter (\sts -> length sts == numtok) shrunk
+      noIds =
+       let list = filter (\t -> let con = toConstr t
+                                in con /= toConstr (ID T.empty)
+                                && con /= toConstr (SegmentID T.empty)
+                                && con /= toConstr (Sep '_')) ts
+       in  if list /= ts then list else []
+      -- * Expr tokens can be pruned freely
+      dropexprs = Tokens <$> mconcat [
+          shrinkCon (Content T.empty) ts
+        , shrinkCon (String T.empty) ts
+        , shrinkCon (Number 0) ts
+        , shrinkCon (Boolean True) ts
+        , shrinkCon OpenSExp ts
+        , shrinkCon CloseSExp ts
+        , shrinkCon Equals ts
+        , shrinkCon Data ts
+        , shrinkCon Undefined ts
+        , shrinkCon Null ts
+        , shrinkCon OpenBlockParams ts
+        , shrinkCon CloseBlockParams ts
+        ]
+      dropids = [Tokens noIds]
+      dropseqs = Tokens <$> mconcat [
+          subsequenceCon [ID T.empty, Sep '_'] ts
+        , subsequenceCon [SegmentID T.empty, Sep '_'] ts
+        , subsequenceCon [OpenCommentBlock Strip, Comment T.empty, CloseCommentBlock Strip] ts
+        , subsequenceCon [OpenComment Strip, Comment T.empty, Close Strip] ts
+        , subsequenceCon [Open Strip, Close Strip] ts
+        , subsequenceCon [OpenBlock Strip, Close Strip] ts
+        , subsequenceCon [OpenPartial Strip, Close Strip] ts
+        , subsequenceCon [OpenPartialBlock Strip, Close Strip] ts
+        , subsequenceCon [OpenUnescaped Strip, CloseUnescaped Strip] ts
+        , subsequenceCon [OpenInverse Strip, Close Strip] ts
+        , subsequenceCon [OpenInverseChain Strip, Close Strip] ts
+        , subsequenceCon [OpenDecorator Strip, Close Strip] ts
+        , subsequenceCon [OpenRawBlock, CloseRawBlock, RawContent T.empty, CloseRaw T.empty] ts
+        ]
+
+-- shrink options: try removing each element with the same constructor as m
+shrinkCon :: Token -> [Token] -> [[Token]]
+shrinkCon m ts = shrunk
+  where
+    toktype = toConstr m
+    matches = listify (\t -> toConstr t == toktype) ts
+    shrunk  = fmap (\mm -> filter (/= mm) ts) matches
+
+-- Remove each subsequence with the same constructors as ms from ts
+subsequenceCon :: [Token] -> [Token] -> [[Token]]
+subsequenceCon = dropSubsequenceBy (\t1 t2 -> toConstr t1 == toConstr t2)
+
+-- given a pred and a subsequence, remove it from the list in every possible way
+dropSubsequenceBy :: (a -> a -> Bool) -> [a] -> [a] -> [[a]]
+dropSubsequenceBy _ [] _ = []
+dropSubsequenceBy pred ms ts = go [] ts
+  where
+    lms = length ms
+    go _ [] = []
+    go tsa tsb =
+      let rest = case tsb of
+            [] -> []
+            (x:xs) -> go (tsa <> [x]) xs
+      in if and (zipWith pred ms tsb) then (tsa <> drop lms tsb) : rest else rest
+
+
+instance Arbitrary Token where
+  arbitrary = oneof [
+      Content <$> arbitrary `suchThat` validContent
+    , RawContent <$> rawContent
+    , Comment <$> arbitrary `suchThat` validComment
+    , Open <$> arbitrary
+    , OpenPartial <$> arbitrary
+    , OpenPartialBlock <$> arbitrary
+    , OpenBlock <$> arbitrary
+    , OpenEndBlock <$> arbitrary
+    , OpenUnescaped <$> arbitrary
+    , OpenInverse <$> arbitrary
+    , OpenInverseChain <$> arbitrary
+    , OpenCommentBlock <$> arbitrary
+    , OpenComment <$> arbitrary
+    , OpenDecorator <$> arbitrary
+    , OpenDecoratorBlock <$> arbitrary
+    , pure OpenRawBlock
+    , Close <$> arbitrary
+    , CloseCommentBlock <$> arbitrary
+    , CloseUnescaped <$> arbitrary
+    , pure CloseRawBlock
+    , CloseRaw <$> arbitrary `suchThat` validId
+    , ID <$> arbitrary `suchThat` validId
+    , segId
+    , String <$> arbitrary `suchThat` validString
+    , Number <$> arbitrary
+    , Boolean <$> arbitrary
+    , Sep <$> elements ['.', '/']
+    , pure OpenSExp
+    , pure CloseSExp
+    , pure Equals
+    , pure Data
+    , pure Undefined
+    , pure Null
+    , pure OpenBlockParams
+    , pure CloseBlockParams
+    ]
+  shrink = \case
+    Content t -> Content <$> filter validContent (shrink t)
+    Comment t -> Comment <$> filter validComment (shrink t)
+    RawContent t -> RawContent <$> filter (isRight . tokenise) (shrink t)
+    ID t -> ID <$> filter validId (shrink t)
+    SegmentID t -> SegmentID <$> filter validSegId (shrink t)
+    String t -> String <$> filter validString (shrink t)
+    CloseRaw t -> CloseRaw <$> filter validId (shrink t)
+    _ -> []
 
 instance Arbitrary Format where
   arbitrary = elements [Strip, Verbatim]
@@ -159,13 +302,18 @@ genTokenMuExpr = do
 -- | Generate a sensible Handlebars expression (inside a partial block etc)
 genTokenExpr :: Gen [Token]
 genTokenExpr = do
-  list <- listOf $ oneof [genTokenId, (:[]) <$> atoms]
-  pure (mconcat list)
+  names <- listOf genTokenId
+  atomz <- fmap (:[]) (listOf atoms)
+  pure (mconcat (interweave names atomz))
+
+interweave :: [a] -> [a] -> [a]
+interweave as bs = mconcat (zipWith (\a b -> [a, b]) as bs)
 
 genTokenExpr1 :: Gen [Token]
 genTokenExpr1 = do
-  list <- listOf1 $ oneof [genTokenId, (:[]) <$> atoms]
-  pure (mconcat list)
+  names <- listOf1 genTokenId
+  atomz <- fmap (:[]) (listOf1 atoms)
+  pure (mconcat (interweave names atomz))
 
 atoms :: Gen Token
 atoms = oneof [
@@ -193,10 +341,12 @@ bareId = ID <$> (arbitrary `suchThat` validId)
 
 segId :: Gen Token
 segId = SegmentID <$> (arbitrary `suchThat` validSegId)
-  where noEscape t = and (fmap escaped (splits t))
+
+validSegId :: Text -> Bool
+validSegId t = and [noEscape t, noNull t, T.takeEnd 1 t /= "\\"]
+  where noEscape tt = and (fmap escaped (splits tt))
         splits = T.breakOnAll "]"
         escaped (m, _) = and [T.takeEnd 1 m == "\\", T.takeEnd 2 m /= "\\\\"]
-        validSegId t = and [noEscape t, noNull t, T.takeEnd 1 t /= "\\"]
 
 -- | Unescaped blocks have a custom closing tag
 genTokenUnescaped :: Gen [Token]
@@ -279,11 +429,12 @@ validId t = and [
     T.all (\c -> and [validIdChar c, c /= '.', c /= '/']) t
   , t /= "as"
   , not (T.null t)
-  , not (isNumber (T.head t))
+  , isAlpha (T.head t)
   ]
 
 validString :: Text -> Bool
-validString t = and (fmap escaped splits)
+validString t = and $ noNull t : unescapedEnd : (fmap noescape splits)
   where
     splits = T.breakOnAll "\"" t
-    escaped (s, _) = and [T.takeEnd 1 s == "\\", T.takeEnd 2 s /= "\\\\"]
+    noescape (s, _) = T.takeEnd 1 s /= "\\"
+    unescapedEnd = T.takeEnd 1 t /= "\\"

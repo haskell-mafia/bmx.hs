@@ -10,32 +10,21 @@ import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
 import           BMX.Lexer as Lexer
-import           BMX.Data (Token (..), Format (..), renderToken)
+import           BMX.Data (Tokens (..), Token (..), Format (..), renderToken)
 
 import           Test.BMX.Arbitrary
 
 import           P
 
 
-roundtrip gen parser = forAll gen $ \ts ->
-  let pretty = foldMap renderToken ts
-      parsed = A.parseOnly parser pretty
-  in  parsed === Right ts
-
 --------------------------------------------------------------------------------
 
 prop_none = once $ tokenise T.empty == Right []
 
-prop_roundtrip_content = roundtrip genTokenContent Lexer.content
-
-prop_roundtrip_muexpr = roundtrip genTokenMuExpr Lexer.mu
-
-prop_roundtrip_comment = roundtrip genTokenComment Lexer.mu
-
-prop_roundtrip_rawblock = roundtrip genTokenRawBlock Lexer.mu
-
-prop_roundtrip_all = roundtrip genTokens Lexer.tokens
-
+prop_roundtrip_all ts =
+  let pretty = foldMap renderToken (unTokens ts)
+      parsed = tokenise pretty
+  in  parsed === Right (unTokens ts)
 
 --------------------------------------------------------------------------------
 prop_block_comment = once $

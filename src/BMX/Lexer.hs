@@ -189,6 +189,7 @@ exprPs :: Parser Token
 exprPs = skipSpace *> eps <* skipSpace
   where eps = numberP
           <|> stringP
+          <|> boolP
           <|> openSExp
           <|> closeSExp
           <|> equals
@@ -283,11 +284,24 @@ numberP = do
   where suffix = char '.' *> signed decimal :: Parser Integer
 
 stringP :: Parser Token
-stringP = do
-  _   <- char '"'
-  str <- manyTillUnescaped notNull (string "\"")
-  _   <- char '"'
-  pure (String (T.replace "\\\"" "\"" str))
+stringP = doubleP <|> singleP
+  where
+    doubleP = do
+      _   <- char '"'
+      str <- manyTillUnescaped notNull (string "\"")
+      _   <- char '"'
+      pure (String (T.replace "\\\"" "\"" str))
+    singleP = do
+      _   <- char '\''
+      str <- manyTillUnescaped notNull (string "'")
+      _   <- char '\''
+      pure (String (T.replace "\\'" "'" str))
+
+boolP :: Parser Token
+boolP = true <|> false
+  where
+    true = string "true" *> pure (Boolean True)
+    false = string "false" *> pure (Boolean False)
 
 sep :: Parser Token
 sep = Sep <$> (char '.' <|> char '/')
@@ -336,7 +350,7 @@ manyTillUnescaped a special = do
   let c = T.pack str
   if | T.takeEnd 2 c == "\\\\" -> pure (T.dropEnd 1 c)
      | T.takeEnd 1 c == "\\"   -> do
-         o <- special
+         o <- option T.empty special
          g <- manyTillUnescaped a special
          pure (c <> o <> g)
      | otherwise               -> pure c
