@@ -15,23 +15,23 @@ import           BMX.Data.Token
 
 import           P
 
-newtype Program = Program { unTemplate :: [Stmt] }
+newtype Program = Program [Stmt]
   deriving (Show, Eq, Generic, Data, Typeable)
 
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr
   | Partial Fmt Expr
-  | PartialBlock Fmt Fmt Expr [Stmt]
-  | Block Fmt Fmt Expr (Maybe BlockParams) [Stmt] (Maybe Stmt)
-  | Inverse Fmt [Stmt]
-  | InverseChain Fmt Expr (Maybe BlockParams) [Stmt] (Maybe Stmt)
-  | InverseBlock Fmt Fmt Expr (Maybe BlockParams) [Stmt] (Maybe Stmt)
+  | PartialBlock Fmt Fmt Expr Program
+  | Block Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
+  | Inverse Fmt Program
+  | InverseChain Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
+  | InverseBlock Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
   | RawBlock Expr Text
   | ContentStmt Text
   | CommentStmt Fmt Text
   | Decorator Fmt Expr
-  | DecoratorBlock Fmt Fmt Expr [Stmt]
+  | DecoratorBlock Fmt Fmt Expr Program
   deriving (Show, Eq, Generic, Data, Typeable)
 
 data Expr
@@ -84,7 +84,7 @@ renderPathComponent (PathSep c) = T.singleton c
 renderLiteral :: Literal -> Text
 renderLiteral = \case
   PathL p    -> renderPath p
-  StringL t  -> "\"" <> t <> "\""
+  StringL t  -> "\"" <> T.replace "\"" "\\\"" t <> "\""
   NumberL i  -> T.pack (show i)
   BooleanL b -> if b then "true" else "false"
   UndefinedL -> "undefined"
@@ -94,7 +94,7 @@ renderBlockParams :: BlockParams -> Text
 renderBlockParams (BlockParams ps) = " as |" <> T.intercalate " " (fmap renderLiteral ps) <> "|"
 
 renderHash :: Hash -> Text
-renderHash (Hash hps) = foldMap renderHashPair hps
+renderHash (Hash hps) = T.intercalate " " (fmap renderHashPair hps)
 
 renderHashPair :: HashPair -> Text
 renderHashPair (HashPair t e) = t <> " = " <> renderExpr e
@@ -118,22 +118,22 @@ renderStmt = \case
     openFormat l <> ">" <> renderBareExpr e <> closeFormat r
   PartialBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
     openFormat l1 <> "#>" <> renderBareExpr e <> closeFormat r1
-      <> foldMap renderStmt body
+      <> renderProgram body
       <> closeBlock l2 r2 e
   Block (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
     openFormat l1 <> "#" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
-      <> foldMap renderStmt body
+      <> renderProgram body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
   Inverse (Fmt l r) body ->
-    openFormat l <> "^" <> closeFormat r <> foldMap renderStmt body
+    openFormat l <> "^" <> closeFormat r <> renderProgram body
   InverseChain (Fmt l r) e bparams body inverse ->
     openFormat l <> "else " <> renderBareExpr e <> blockParams bparams <> closeFormat r
-      <> foldMap renderStmt body
+      <> renderProgram body
       <> inverseMay inverse
   InverseBlock (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
     openFormat l1 <> "^" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
-      <> foldMap renderStmt body
+      <> renderProgram body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
   RawBlock e content ->
@@ -145,7 +145,7 @@ renderStmt = \case
     openFormat l <> "*" <> renderBareExpr e <> closeFormat r
   DecoratorBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
     openFormat l1 <> "#*" <> renderBareExpr e <> closeFormat r1
-      <> foldMap renderStmt body
+      <> renderProgram body
       <> closeBlock l2 r2 e
   where
     openFormat f = "{{" <> renderFormat f

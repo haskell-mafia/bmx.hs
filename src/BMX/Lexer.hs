@@ -60,12 +60,6 @@ validIdChar = predi
                      <> ['.', '/', ';', '<', '=', '>', '@', '[', '\\', ']', '^', '`']
                      <> ['{', '|', '}', '~']
 
--- | The Close tag for a raw block uses its own lookahead class
-rawCloseLookAhead :: Parser Char
-rawCloseLookAhead = satisfy predi
-  where predi c = or [isSpace c, inClass rawClass c]
-        rawClass = ['=', '}', '/', '.']
-
 
 -- -----------------------------------------------------------------------------
 -- Top-level
@@ -169,10 +163,9 @@ rawBlock Verbatim = do
     closeRawBlock = do
       _ <- openRaw
       _ <- char '/'
-      i <- takeWhile validIdChar
-      _ <- lookAhead rawCloseLookAhead
+      i <- manyTill' notNull (lookAhead (skipSpace *> closeRaw))
       _ <- closeRaw
-      pure (CloseRaw i)
+      pure (CloseRaw (T.pack i))
 
 openPs :: Format -> Parser Token
 openPs f = openPartial f

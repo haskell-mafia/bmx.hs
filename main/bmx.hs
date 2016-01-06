@@ -20,5 +20,5 @@ main = do
          print
          lexed
   either (print . renderParseError)
-         (\prg -> print prg >> print (renderProgram prg))
+         (\pr -> print pr >> print (renderProgram pr))
          parsed

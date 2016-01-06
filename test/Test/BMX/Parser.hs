@@ -21,7 +21,7 @@ prop_parse_roundtrip p =
   let pretty = renderProgram p
       lexed = tokenise pretty
       parsed = either (Left . ParseError . (<>) "Lexer error: " . renderLexError) parse lexed
-  in  trace (show pretty) $ parsed === Right p
+  in  parsed === Right p
 
 --------------------------------------------------------------------------------
 -- dopey regression tests
@@ -51,6 +51,11 @@ prop_basic_block_inverse_2 = once . doesParse $
 
 prop_basic_inverse_block = once . doesParse $
   "{{^inverse block}} here we go {{^}} with inverse {{/inverse}}"
+
+prop_basic_hash_pair = once . and $ fmap doesParse [
+    "{{ mustache with hash = pair }}"
+  , "{{ mustache with hash = pair fun = times }}"
+  ]
 
 --------------------------------------------------------------------------------
 

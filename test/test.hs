@@ -7,5 +7,5 @@ main :: IO ()
 main =
   disorderMain [
       Lexer.tests
-    -- , Parser.tests
+    , Parser.tests
     ]

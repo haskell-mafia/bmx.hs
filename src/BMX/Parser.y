@@ -111,7 +111,7 @@ Block :
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (Block fmt1 fmt2 exp1 bparams (reverse $2) $3)
+              then return (Block fmt1 fmt2 exp1 bparams (prg $2) $3)
               else Left (blockError "Block" expected actual)
       }
 
@@ -140,7 +140,7 @@ InverseBlock :
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (InverseBlock fmt1 fmt2 exp1 bparams (reverse $2) $3)
+              then return (InverseBlock fmt1 fmt2 exp1 bparams (prg $2) $3)
               else Left (blockError "Inverse block" expected actual)
       }
 
@@ -156,8 +156,8 @@ OpenInverseBlock :
   An Inverse terminates the block, i.e. it can't be followed by a chained inverse.
 -}
 Inverse :
-    openInverse close Statements      { Just $ Inverse (Fmt $1 $2) (reverse $3) }
-  | openInverseChain close Statements { Just $ Inverse (Fmt $1 $2) (reverse $3) }
+    openInverse close Statements      { Just $ Inverse (Fmt $1 $2) (prg $3) }
+  | openInverseChain close Statements { Just $ Inverse (Fmt $1 $2) (prg $3) }
   | {- empty -}                       { Nothing }
 
 {-
@@ -175,7 +175,7 @@ InverseChain :
     OpenInverseChain Statements InverseChain
       {
         let (fmt, expr, bparams) = $1
-        in  Just $ InverseChain fmt expr bparams (reverse $2) $3
+        in  Just $ InverseChain fmt expr bparams (prg $2) $3
       }
   | Inverse                           { $1 }
 
@@ -203,7 +203,7 @@ PartialBlock :
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (PartialBlock fmt1 fmt2 exp1 (reverse $2))
+              then return (PartialBlock fmt1 fmt2 exp1 (prg $2))
               else Left (blockError "Partial block" expected actual)
       }
 
@@ -225,7 +225,7 @@ DecoratorBlock :
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (DecoratorBlock fmt1 fmt2 exp1 (reverse $2))
+              then return (DecoratorBlock fmt1 fmt2 exp1 (prg $2))
               else Left (blockError "Decorator block" expected actual)
       }
 
@@ -300,6 +300,9 @@ newtype ParseError = ParseError { renderParseError :: Text }
   deriving (Eq, Show)
 
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
+
+prg :: [Stmt] -> Program
+prg = Program . reverse
 
 -- Extract the helper name from an Expr
 exprHelper :: Expr -> Maybe Text

@@ -6,6 +6,7 @@ module Test.BMX.Arbitrary where
 
 import           Data.Char (isAlpha)
 import           Data.Data
+import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (intersperse, zipWith)
 import           Data.Text (Text)
@@ -22,7 +23,15 @@ import           P
 -- AST / parser generators
 
 instance Arbitrary Program where
-  arbitrary = Program <$> smallList arbitrary
+  arbitrary = everywhere (mkT merge) . Program <$> smallList arbitrary
+  shrink (Program sts) = everywhere (mkT merge) . Program <$> shrinkList shrink sts
+
+merge :: Program -> Program
+merge (Program ps) = Program (go ps)
+  where
+    go (ContentStmt t1 : ContentStmt t2 : xs) = go (ContentStmt (t1 <> t2) : xs)
+    go (x : xs) = x : go xs
+    go [] = []
 
 instance Arbitrary Stmt where
   arbitrary = oneof [
@@ -40,14 +49,18 @@ instance Arbitrary Stmt where
     ]
     where
       bparams = oneof [pure Nothing, arbitrary]
-      body = smaller (smallList arbitrary)
+      body = Program <$> smaller (smallList arbitrary)
       inverseChain = smaller $ sized goInverse
       goInverse 0 = pure Nothing
       goInverse n = oneof [pure Nothing, inverse, inverseChain' n]
       inverseChain' n = fmap Just $
         InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
       inverse = fmap Just $ Inverse <$> arbitrary <*> body
-  shrink = genericShrink
+  shrink = \case
+    ContentStmt t -> ContentStmt <$> filter validContent (shrink t)
+    CommentStmt f t -> CommentStmt f <$> filter validComment (shrink t)
+    RawBlock e _ -> RawBlock <$> shrink e <*> [T.empty]
+    other -> genericShrink other
 
 instance Arbitrary Expr where
   arbitrary = oneof [
@@ -57,7 +70,7 @@ instance Arbitrary Expr where
   shrink = genericShrink
 
 bareExpr :: Gen Expr
-bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> arbitrary
+bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
 
 smallList :: Gen a -> Gen [a]
 smallList g = sized go
@@ -77,14 +90,16 @@ instance Arbitrary Literal where
     , pure UndefinedL
     , pure NullL
     ]
-  shrink = genericShrink
+  shrink = \case
+    StringL t -> StringL <$> filter validString (shrink t)
+    other -> recursivelyShrink other
 
 instance Arbitrary BlockParams where
   arbitrary = BlockParams <$> listOf1 name
     where
       -- A 'simple' name, i.e. an ID without path components
       name = PathL . Path . (:[]) . PathID <$> arbitrary `suchThat` validId
-  shrink = genericShrink
+  shrink (BlockParams ps) = BlockParams <$> filter (not . null) (shrinkList shrink ps)
 
 instance Arbitrary Path where
   arbitrary = do
@@ -99,22 +114,27 @@ instance Arbitrary Path where
         s <- sep
         i <- ident
         pure [s, i]
-  shrink = genericShrink
+  shrink = \case
+    Path ps -> Path <$> filter (not . null) (idsep ps)
+    DataPath ps -> DataPath <$> filter (not . null) (idsep ps)
+    where idsep = subsequenceCon [PathSep '_', PathID T.empty]
 
 instance Arbitrary PathComponent where
   arbitrary = oneof [
       PathID <$> arbitrary `suchThat` validId
     , PathSep <$> elements ['.', '/']
     ]
-  shrink = genericShrink
+  shrink = \case
+    PathID t -> PathID <$> filter validId (shrink t)
+    _ -> []
 
 instance Arbitrary Hash where
   arbitrary = Hash <$> smallList arbitrary
-  shrink = genericShrink
+  shrink (Hash hps) = Hash <$> shrinkList shrink hps
 
 instance Arbitrary HashPair where
   arbitrary = HashPair <$> arbitrary `suchThat` validId <*> smaller arbitrary
-  shrink = genericShrink
+  shrink (HashPair t e) = HashPair <$> filter validId (shrink t) <*> shrink e
 
 instance Arbitrary Fmt where
   arbitrary = Fmt <$> arbitrary <*> arbitrary
@@ -181,7 +201,7 @@ shrinkCon m ts = shrunk
     shrunk  = fmap (\mm -> filter (/= mm) ts) matches
 
 -- Remove each subsequence with the same constructors as ms from ts
-subsequenceCon :: [Token] -> [Token] -> [[Token]]
+subsequenceCon :: (Data a, Typeable a) => [a] -> [a] -> [[a]]
 subsequenceCon = dropSubsequenceBy (\t1 t2 -> toConstr t1 == toConstr t2)
 
 -- given a pred and a subsequence, remove it from the list in every possible way
@@ -256,14 +276,14 @@ genTokens :: Gen [Token]
 genTokens = sized sizedGen
   where
     sizedGen 0 = pure []
-    sizedGen n = merge . mconcat <$> vectorOf n (oneof [
+    sizedGen n = merg . mconcat <$> vectorOf n (oneof [
         genTokenContent
       , genTokenMustache
       ])
     --
-    merge (Content t1 : Content t2 : ts) = merge (Content (t1 <> t2) : ts)
-    merge (t:ts) = t : merge ts
-    merge [] = []
+    merg (Content t1 : Content t2 : ts) = merg (Content (t1 <> t2) : ts)
+    merg (t:ts) = t : merg ts
+    merg [] = []
 
 -- | Generate a sensible piece of Content
 genTokenContent :: Gen [Token]
