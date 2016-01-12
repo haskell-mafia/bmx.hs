@@ -157,8 +157,8 @@ rawBlock Verbatim = do
       body <- manyTill' notNull (lookAhead closeRaw)
       c <- closeRaw
       bs <- many (nestedRaw <|> content')
-      i <- closeRawBlock
-      pure (o <> T.pack body <> c <> T.concat bs <> renderToken i)
+      (CloseRaw i) <- closeRawBlock
+      pure (o <> T.pack body <> c <> T.concat bs <> "{{{{/" <> i <> "}}}}")
     --
     closeRawBlock = do
       _ <- openRaw
