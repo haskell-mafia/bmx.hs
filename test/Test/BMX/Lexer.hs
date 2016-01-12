@@ -4,7 +4,6 @@
 {-# OPTIONS_GHC -Wwarn #-}
 module Test.BMX.Lexer where
 
-import qualified Data.Attoparsec.Text as A
 import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
@@ -12,7 +11,7 @@ import           Test.QuickCheck.Instances ()
 import           BMX.Lexer as Lexer
 import           BMX.Data (Tokens (..), Token (..), Format (..), renderToken)
 
-import           Test.BMX.Arbitrary
+import           Test.BMX.Arbitrary ()
 
 import           P
 

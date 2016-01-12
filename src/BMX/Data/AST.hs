@@ -21,8 +21,8 @@ newtype Program = Program [Stmt]
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr
-  | Partial Fmt Expr
-  | PartialBlock Fmt Fmt Expr Program
+  | Partial Fmt Expr (Maybe Expr)
+  | PartialBlock Fmt Fmt Expr (Maybe Expr) Program
   | Block Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
   | Inverse Fmt Program
   | InverseChain Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
@@ -58,6 +58,7 @@ data Path
 
 data PathComponent
   = PathID Text
+  | PathSegment Text
   | PathSep Char
   deriving (Show, Eq, Generic, Data, Typeable)
 
@@ -78,8 +79,10 @@ renderPath (Path pcs) = foldMap renderPathComponent pcs
 renderPath (DataPath pcs) = "@" <> foldMap renderPathComponent pcs
 
 renderPathComponent :: PathComponent -> Text
-renderPathComponent (PathID t)  = t
-renderPathComponent (PathSep c) = T.singleton c
+renderPathComponent = \case
+  PathID t -> t
+  PathSep c -> T.singleton c
+  PathSegment t -> "[" <> t <> "]"
 
 renderLiteral :: Literal -> Text
 renderLiteral = \case
@@ -114,10 +117,14 @@ renderStmt = \case
     openFormat l <> renderBareExpr e <> closeFormat r
   MustacheUnescaped (Fmt l r) e ->
     openFormat l <> "{" <> renderBareExpr e <> "}" <> closeFormat r
-  Partial (Fmt l r) e ->
-    openFormat l <> ">" <> renderBareExpr e <> closeFormat r
-  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
-    openFormat l1 <> "#>" <> renderBareExpr e <> closeFormat r1
+  Partial (Fmt l r) e ctx ->
+    openFormat l <> ">" <> renderExpr e
+       <> " " <> maybe T.empty renderBareExpr ctx
+       <> closeFormat r
+  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ctx body ->
+    openFormat l1 <> "#>" <> renderExpr e
+      <> " " <> maybe T.empty renderBareExpr ctx
+      <> closeFormat r1
       <> renderProgram body
       <> closeBlock l2 r2 e
   Block (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->

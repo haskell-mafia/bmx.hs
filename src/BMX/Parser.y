@@ -26,21 +26,21 @@ import           P
   comment                          { Comment $$ }
   --
   open                             { Open $$ }
-  openBlock                        { OpenBlock $$ }
-  openEndBlock                     { OpenEndBlock $$ }
-  openUnescaped                    { OpenUnescaped $$ }
-  openComment                      { OpenComment $$ }
-  openCommentBlock                 { OpenCommentBlock $$ }
-  openPartial                      { OpenPartial $$ }
-  openPartialBlock                 { OpenPartialBlock $$ }
-  openDecorator                    { OpenDecorator $$ }
-  openDecoratorBlock               { OpenDecoratorBlock $$ }
-  openInverse                      { OpenInverse $$ }
-  openInverseChain                 { OpenInverseChain $$ }
+  open_block                        { OpenBlock $$ }
+  open_end_block                     { OpenEndBlock $$ }
+  open_unescaped                    { OpenUnescaped $$ }
+  open_comment                      { OpenComment $$ }
+  open_comment_block                 { OpenCommentBlock $$ }
+  open_partial                      { OpenPartial $$ }
+  open_partial_block                 { OpenPartialBlock $$ }
+  open_decorator                    { OpenDecorator $$ }
+  open_decorator_block               { OpenDecoratorBlock $$ }
+  open_inverse                      { OpenInverse $$ }
+  open_inverse_chain                 { OpenInverseChain $$ }
   --
   close                            { Close $$ }
-  closeUnescaped                   { CloseUnescaped $$ }
-  closeCommentBlock                { CloseCommentBlock $$ }
+  close_unescaped                   { CloseUnescaped $$ }
+  close_comment_block                { CloseCommentBlock $$ }
   --
   string                           { String $$ }
   number                           { Number $$ }
@@ -48,30 +48,30 @@ import           P
   undef                            { Undefined }
   nul                              { Null }
   ident                            { ID $$ }
-  segmentId                        { SegmentID $$ }
-  openSexp                         { OpenSExp }
-  closeSexp                        { CloseSExp }
+  segment_id                        { SegmentID $$ }
+  open_sexp                         { OpenSExp }
+  close_sexp                        { CloseSExp }
   equals                           { Equals }
-  dataSigil                        { Data }
+  data_sigil                        { Data }
   sep                              { Sep $$ }
-  openBlockParams                  { OpenBlockParams }
-  closeBlockParams                 { CloseBlockParams }
+  open_block_params                  { OpenBlockParams }
+  close_block_params                 { CloseBlockParams }
   -- * Raw blocks
-  rawContent                       { RawContent $$ }
-  openRawBlock                     { OpenRawBlock }
-  closeRawBlock                    { CloseRawBlock }
-  closeRaw                         { CloseRaw $$ }
+  raw_content                       { RawContent $$ }
+  open_raw_block                     { OpenRawBlock }
+  close_raw_block                    { CloseRawBlock }
+  close_raw                         { CloseRaw $$ }
 
 %%
 
-Program :
+Program :: { Program }:
     Statements                     { Program (reverse $1) }
 
-Statements :
+Statements :: { [Stmt] }:
     Statements Statement           { $2 : $1 }
   | {- empty -}                    { [] }
 
-Statement :
+Statement :: { Stmt }:
     content                        { ContentStmt $1 }
   | Comment                        { let (fmt, com) = $1 in CommentStmt fmt com }
   | Mustache                       { $1 }
@@ -81,14 +81,14 @@ Statement :
   | Partial                        { $1 }
   | Decorator                      { $1 }
 
-Comment :
+Comment :: { (Fmt, Text) }:
   -- You'd think we could discard comments here, but they have formatting implications
-    openCommentBlock comment closeCommentBlock { (Fmt $1 $3, $2) }
-  | openComment comment close                  { (Fmt $1 $3, $2) }
+    open_comment_block comment close_comment_block { (Fmt $1 $3, $2) }
+  | open_comment comment close                  { (Fmt $1 $3, $2) }
 
-Mustache :
+Mustache :: { Stmt }:
     open BareExpr close                   { Mustache (Fmt $1 $3) $2 }
-  | openUnescaped BareExpr closeUnescaped { MustacheUnescaped (Fmt $1 $3) $2 }
+  | open_unescaped BareExpr close_unescaped { MustacheUnescaped (Fmt $1 $3) $2 }
 
 -- -----------------------------------------------------------------------------
 -- Blocks
@@ -102,7 +102,7 @@ Mustache :
   'falsey' condition is part of Helper definition, i.e. a custom thing per helper
   {{/blockHelper}}
 -}
-Block :
+Block :: { Stmt }:
     OpenBlock Statements InverseChain CloseBlock
       {%
           -- Match the helpername with the closing block
@@ -115,11 +115,11 @@ Block :
               else Left (blockError "Block" expected actual)
       }
 
-OpenBlock :
-    openBlock BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
+OpenBlock :: { (Fmt, Expr, Maybe BlockParams) }:
+    open_block BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
 
-CloseBlock :
-    openEndBlock Literal close     { (Fmt $1 $3, $2) }
+CloseBlock :: { (Fmt, Literal) }:
+    open_end_block Literal close     { (Fmt $1 $3, $2) }
 
 {-
   {{^if tuesday}}
@@ -132,7 +132,7 @@ CloseBlock :
   though you could use {{else}} in place of {{^}}. ^ seems to ~mean 'not'
 
 -}
-InverseBlock :
+InverseBlock :: { Stmt }:
     OpenInverseBlock Statements Inverse CloseBlock
       {%
           let (fmt1, exp1, bparams) = $1
@@ -144,8 +144,8 @@ InverseBlock :
               else Left (blockError "Inverse block" expected actual)
       }
 
-OpenInverseBlock :
-    openInverse BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
+OpenInverseBlock :: { (Fmt, Expr, Maybe BlockParams) }:
+    open_inverse BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
 
 {-
   {{^}}
@@ -155,9 +155,9 @@ OpenInverseBlock :
   everything after its Inverse is evaluated instead.
   An Inverse terminates the block, i.e. it can't be followed by a chained inverse.
 -}
-Inverse :
-    openInverse close Statements      { Just $ Inverse (Fmt $1 $2) (prg $3) }
-  | openInverseChain close Statements { Just $ Inverse (Fmt $1 $2) (prg $3) }
+Inverse :: { Maybe Stmt }:
+    open_inverse close Statements      { Just $ Inverse (Fmt $1 $2) (prg $3) }
+  | open_inverse_chain close Statements { Just $ Inverse (Fmt $1 $2) (prg $3) }
   | {- empty -}                       { Nothing }
 
 {-
@@ -171,7 +171,7 @@ Inverse :
   the final clause
   {{/some}}
 -}
-InverseChain :
+InverseChain :: { Maybe Stmt }:
     OpenInverseChain Statements InverseChain
       {
         let (fmt, expr, bparams) = $1
@@ -179,45 +179,48 @@ InverseChain :
       }
   | Inverse                           { $1 }
 
-OpenInverseChain :
-    openInverseChain BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
+OpenInverseChain :: { (Fmt, Expr, Maybe BlockParams) }:
+    open_inverse_chain BareExpr BlockParams close { (Fmt $1 $4, $2, $3) }
 
 -- -----------------------------------------------------------------------------
 -- Partials
 
 {-
-  {{> partial helper here}} regular mustache style inline partial
-  {{#> partial block helper here abc=def}}
+  {{> partial }} regular mustache style inline partial
+  {{#> (partial block) abc=def}}
   arbitrary handlebars content inside a partial block
   {{/partial}}
+  {{> partial withContext abc=def}}
 -}
-Partial :
-    openPartial BareExpr close     { Partial (Fmt $1 $3) $2 }
+Partial :: { Stmt }:
+    open_partial Expr BareExpr close     { Partial (Fmt $1 $4) $2 (Just $3) }
+  | open_partial Expr close              { Partial (Fmt $1 $3) $2 Nothing }
   | PartialBlock                   { $1 }
 
-PartialBlock :
+PartialBlock :: { Stmt }:
     OpenPartialBlock Statements CloseBlock
       {%
-          let (fmt1, exp1) = $1
+          let (fmt1, exp1, ctx) = $1
               (fmt2, exp2) = $3
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (PartialBlock fmt1 fmt2 exp1 (prg $2))
+              then return (PartialBlock fmt1 fmt2 exp1 ctx (prg $2))
               else Left (blockError "Partial block" expected actual)
       }
 
-OpenPartialBlock :
-    openPartialBlock BareExpr close { (Fmt $1 $3, $2) }
+OpenPartialBlock :: { (Fmt, Expr, Maybe Expr) }:
+    open_partial_block Expr BareExpr close { (Fmt $1 $4, $2, Just $3) }
+  | open_partial_block Expr close          { (Fmt $1 $3, $2, Nothing) }
 
 -- -----------------------------------------------------------------------------
 -- Decorators
 
-Decorator :
-    openDecorator BareExpr close   { Decorator (Fmt $1 $3) $2 }
+Decorator :: { Stmt }:
+    open_decorator BareExpr close   { Decorator (Fmt $1 $3) $2 }
   | DecoratorBlock                 { $1 }
 
-DecoratorBlock :
+DecoratorBlock :: { Stmt }:
     OpenDecoratorBlock Statements CloseBlock
       {%
           let (fmt1, exp1) = $1
@@ -229,14 +232,14 @@ DecoratorBlock :
               else Left (blockError "Decorator block" expected actual)
       }
 
-OpenDecoratorBlock :
-    openDecoratorBlock BareExpr close { (Fmt $1 $3, $2) }
+OpenDecoratorBlock :: { (Fmt, Expr) }:
+    open_decorator_block BareExpr close { (Fmt $1 $3, $2) }
 
 -- -----------------------------------------------------------------------------
 -- Raw blocks
 
-Raw :
-    openRawBlock BareExpr closeRawBlock rawContent closeRaw
+Raw :: { Stmt }:
+    open_raw_block BareExpr close_raw_block raw_content close_raw
       {%
          let helperName = exprHelper $2 in
          if helperName == Just $5
@@ -247,19 +250,19 @@ Raw :
 -- -----------------------------------------------------------------------------
 -- Exprs, literals, atoms
 
-BareExpr :
+BareExpr :: { Expr }:
     -- A SExp without parentheses.
     Literal Exprs Hash             { SExp $1 (reverse $2) $3 }
 
-Expr :
-    openSexp BareExpr closeSexp    { $2 }
+Expr :: { Expr }:
+    open_sexp BareExpr close_sexp    { $2 }
   | Literal                        { Lit $1 }
 
-Exprs :
+Exprs :: { [Expr] }:
     Exprs Expr                     { $2 : $1 }
   | {- empty -}                    { [] }
 
-Literal :
+Literal :: { Literal }:
     string                         { StringL $1 }
   | number                         { NumberL $1 }
   | bool                           { BooleanL $1 }
@@ -267,31 +270,33 @@ Literal :
   | nul                            { NullL }
   | Path                           { PathL $1 }
 
-Path :
-    dataSigil PathComponents       { DataPath $2 }
+Path :: { Path }:
+    data_sigil PathComponents       { DataPath $2 }
   | PathComponents                 { Path $1 }
 
-PathComponents :
+PathComponents :: { [PathComponent] }:
     ident sep PathComponents       { PathID $1 : PathSep $2 : $3 }
   | ident                          { PathID $1 : [] }
+  | segment_id sep PathComponents  { PathSegment $1 : PathSep $2 : $3 }
+  | segment_id                     { PathSegment $1 : [] }
 
-Hash :
+Hash :: { Hash }:
     HashPairs                      { Hash $1 }
 
-HashPairs :
+HashPairs :: { [HashPair] }:
     ident equals Expr HashPairs    { HashPair $1 $3 : $4 }
   | {- empty -}                    { [] }
 
-BlockParams :
-    openBlockParams Names closeBlockParams { Just $ BlockParams (reverse $2) }
-  | {- empty -}                            { Nothing }
+BlockParams :: { Maybe BlockParams }:
+    open_block_params Names close_block_params { Just $ BlockParams (reverse $2) }
+  | {- empty -}                    { Nothing }
 
-Names :
+Names :: { [Literal] }:
   -- Used only in BlockParams, where the LHS of each pair must be a 'simple' name
     SimpleID                       { [$1] }
   | Names SimpleID                 { $2 : $1 }
 
-SimpleID :
+SimpleID :: { Literal }:
     ident                          { PathL (Path [PathID $1]) }
 
 {

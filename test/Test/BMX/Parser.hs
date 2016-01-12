@@ -11,7 +11,7 @@ import           BMX.Data (renderProgram)
 import           BMX.Lexer (tokenise, LexError (..))
 import           BMX.Parser (parse, ParseError (..))
 
-import           Test.BMX.Arbitrary
+import           Test.BMX.Arbitrary ()
 
 import           P
 

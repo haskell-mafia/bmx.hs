@@ -37,8 +37,8 @@ instance Arbitrary Stmt where
   arbitrary = oneof [
       Mustache <$> arbitrary <*> bareExpr
     , MustacheUnescaped <$> arbitrary <*> bareExpr
-    , Partial <$> arbitrary <*> bareExpr
-    , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
+    , Partial <$> arbitrary <*> bareExpr <*> expmay
+    , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> expmay <*> body
     , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverseChain
     , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverse
     , RawBlock <$> bareExpr <*> rawContent
@@ -56,6 +56,7 @@ instance Arbitrary Stmt where
       inverseChain' n = fmap Just $
         InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
       inverse = fmap Just $ Inverse <$> arbitrary <*> body
+      expmay = elements [Just, const Nothing] <*> bareExpr
   shrink = \case
     ContentStmt t -> ContentStmt <$> filter validContent (shrink t)
     CommentStmt f t -> CommentStmt f <$> filter validComment (shrink t)
@@ -123,6 +124,7 @@ instance Arbitrary PathComponent where
   arbitrary = oneof [
       PathID <$> arbitrary `suchThat` validId
     , PathSep <$> elements ['.', '/']
+    , PathSegment <$> arbitrary `suchThat` validComment
     ]
   shrink = \case
     PathID t -> PathID <$> filter validId (shrink t)
