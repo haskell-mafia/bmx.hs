@@ -3,7 +3,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX (
     module X
+  , templateFromText
   ) where
 
-import BMX.Lexer as X (LexError (..), tokenise)
-import BMX.Parser as X (ParseError (..), parse)
+import           Data.Text (Text)
+import           BMX.Data
+import           BMX.Lexer as X (LexError (..), tokenise)
+import           BMX.Parser as X (ParseError (..), parse)
+
+import           P
+
+templateFromText :: Text -> Either ParseError Program
+templateFromText = either convert parse . tokenise
+  where
+    convert = Left . ParseError . lexError . renderLexError
+    lexError e = "Lexing error " <> e

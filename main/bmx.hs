@@ -5,20 +5,12 @@ module Main where
 import qualified Data.Text.IO as T
 import           System.IO
 
-import           BMX.Data
-import           BMX.Lexer
-import           BMX.Parser
+import           BMX
 
 import           P
 
 main :: IO ()
 main = do
   inp <- T.getContents
-  let lexed = tokenise inp
-      parsed = either (const . Left $ ParseError "Lexer error") parse lexed
-  either (print . renderLexError)
-         print
-         lexed
-  either (print . renderParseError)
-         (\pr -> print pr >> print (renderProgram pr))
-         parsed
+  let parsed = templateFromText inp
+  either (T.putStrLn . renderParseError) print parsed

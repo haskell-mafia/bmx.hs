@@ -58,4 +58,4 @@ prop_basic_hash_pair = once . and $ fmap doesParse [
 --------------------------------------------------------------------------------
 
 return []
-tests = $forAllProperties $ quickCheckWithResult stdArgs { maxSuccess = 200 }
+tests = $forAllProperties $ quickCheckWithResult stdArgs { maxSuccess = 500 }
