@@ -6,6 +6,10 @@ import qualified Data.Text.IO as T
 import           System.IO
 
 import           BMX
+import           BMX.Data
+import           BMX.Eval
+import           BMX.Lexer
+import           BMX.Parser
 
 import           P
 
@@ -14,3 +18,10 @@ main = do
   inp <- T.getContents
   let parsed = templateFromText inp
   either (T.putStrLn . renderParseError) print parsed
+  let scream = T.hPutStrLn stderr
+      drawResult (epage, er) = do
+        either (scream . renderEvalError) (T.putStrLn . renderPage) epage
+        mapM_ (scream . renderEvalOutput) er
+  either (const $ return ())
+         (drawResult . runBMX . evalProgram)
+         parsed

@@ -193,8 +193,8 @@ do_open_inverse_chain :: { (Fmt, Expr, Maybe BlockParams) }:
   {{> partial withContext abc=def}}
 -}
 partial :: { Stmt }:
-    open_partial expr bare_expr close     { Partial (Fmt $1 $4) $2 (Just $3) }
-  | open_partial expr close               { Partial (Fmt $1 $3) $2 Nothing }
+    open_partial expr bare_expr close     { PartialStmt (Fmt $1 $4) $2 (Just $3) }
+  | open_partial expr close               { PartialStmt (Fmt $1 $3) $2 Nothing }
   | partial_block                         { $1 }
 
 partial_block :: { Stmt }:
@@ -217,7 +217,7 @@ do_open_partial_block :: { (Fmt, Expr, Maybe Expr) }:
 -- Decorators
 
 decorator :: { Stmt }:
-    open_decorator bare_expr close { Decorator (Fmt $1 $3) $2 }
+    open_decorator bare_expr close { DecoratorStmt (Fmt $1 $3) $2 }
   | decorator_block                 { $1 }
 
 decorator_block :: { Stmt }:
@@ -269,16 +269,16 @@ literal :: { Literal }:
   | undef                            { UndefinedL }
   | nul                              { NullL }
   | path                             { PathL $1 }
+  | data_path                         { DataL $1 }
 
 path :: { Path }:
-    data_sigil path_components       { DataPath $2 }
-  | path_components                  { Path $1 }
+    ident sep path                   { PathID $1 (Just ($2, $3)) }
+  | ident                            { PathID $1 Nothing }
+  | segment_id sep path              { PathSeg $1 (Just ($2, $3)) }
+  | segment_id                       { PathSeg $1 Nothing }
 
-path_components :: { [PathComponent] }:
-    ident sep path_components        { PathID $1 : PathSep $2 : $3 }
-  | ident                            { PathID $1 : [] }
-  | segment_id sep path_components   { PathSegment $1 : PathSep $2 : $3 }
-  | segment_id                       { PathSegment $1 : [] }
+data_path :: { DataPath }:
+    data_sigil path                  { DataPath $2 }
 
 hash :: { Hash }:
     hash_pairs                       { Hash $1 }
@@ -297,7 +297,7 @@ names :: { [Literal] }:
   | names simple_id                 { $2 : $1 }
 
 simple_id :: { Literal }:
-    ident                          { PathL (Path [PathID $1]) }
+    ident                          { PathL (PathID $1 Nothing) }
 
 {
 

@@ -20,6 +20,18 @@ import           BMX.Lexer
 import           P
 
 --------------------------------------------------------------------------------
+-- Page
+
+instance Arbitrary Page where
+  arbitrary = elements [Formatter, \_ _ t _ _ -> Formattee t]
+    <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  shrink (Formattee t) = Formattee <$> shrink t
+  shrink (Formatter lf rf t1 t2 t3) = bodies <> leftsh <> rightsh
+    where bodies = (\t -> Formatter lf rf t t2 t3) <$> shrink t1
+          leftsh = (\t -> Formatter lf rf t1 t t3) <$> shrink t2
+          rightsh = (\t -> Formatter lf rf t1 t2 t) <$> shrink t3
+
+--------------------------------------------------------------------------------
 -- AST / parser generators
 
 instance Arbitrary Program where
@@ -32,14 +44,14 @@ instance Arbitrary Stmt where
   arbitrary = oneof [
       Mustache <$> arbitrary <*> bareExpr
     , MustacheUnescaped <$> arbitrary <*> bareExpr
-    , Partial <$> arbitrary <*> bareExpr <*> expmay
+    , PartialStmt <$> arbitrary <*> bareExpr <*> expmay
     , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> expmay <*> body
     , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverseChain
     , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverse
     , RawBlock <$> bareExpr <*> rawContent
     , ContentStmt <$> arbitrary `suchThat` validContent
     , CommentStmt <$> arbitrary <*> arbitrary `suchThat` validComment
-    , Decorator <$> arbitrary <*> bareExpr
+    , DecoratorStmt <$> arbitrary <*> bareExpr
     , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
     ]
     where
@@ -68,6 +80,7 @@ instance Arbitrary Expr where
 instance Arbitrary Literal where
   arbitrary = oneof [
       PathL <$> arbitrary
+    , DataL <$> arbitrary
     , StringL <$> arbitrary `suchThat` validString
     , NumberL <$> arbitrary
     , BooleanL <$> arbitrary
@@ -82,36 +95,36 @@ instance Arbitrary BlockParams where
   arbitrary = BlockParams <$> listOf1 name
     where
       -- A 'simple' name, i.e. an ID without path components
-      name = PathL . Path . (:[]) . PathID <$> arbitrary `suchThat` validId
+      name = fmap PathL . PathID <$> arbitrary `suchThat` validId <*> pure Nothing
   shrink (BlockParams ps) = BlockParams <$> filter (not . null) (shrinkList shrink ps)
 
-instance Arbitrary Path where
-  arbitrary = do
-    p <- elements [Path, DataPath]
-    i <- PathID <$> arbitrary `suchThat` validId
-    cs <- listOf pair
-    pure $ p (i : mconcat cs)
-    where
-      ident = PathID <$> arbitrary `suchThat` validId
-      sep = PathSep <$> elements ['.', '/']
-      pair = do
-        s <- sep
-        i <- ident
-        pure [s, i]
-  shrink = \case
-    Path ps -> Path <$> filter (not . null) (idsep ps)
-    DataPath ps -> DataPath <$> filter (not . null) (idsep ps)
-    where idsep = subsequenceCon [PathSep '_', PathID T.empty]
+instance Arbitrary DataPath where
+  arbitrary = DataPath <$> arbitrary
+  shrink (DataPath p) = DataPath <$> shrink p
 
-instance Arbitrary PathComponent where
+instance Arbitrary Path where
   arbitrary = oneof [
-      PathID <$> arbitrary `suchThat` validId
-    , PathSep <$> elements ['.', '/']
-    , PathSegment <$> arbitrary `suchThat` validComment
-    ]
+        oneof [dot, dotdot] <*> sized slashrest
+      , oneof [reg, seg] <*> sized rest
+      ]
+    where
+      paths 0 = oneof [reg, seg] <*> pure Nothing
+      paths n = oneof [reg, seg] <*> rest (n - 1)
+      rest 0 = pure Nothing
+      rest n = fmap Just . (,) <$> elements ['.', '/'] <*> paths n
+      slashrest n = fmap Just . (,) <$> pure '/' <*> paths n
+      reg = PathID <$> arbitrary `suchThat` validId
+      seg = PathSeg <$> arbitrary `suchThat` validComment
+      dot = pure (PathID ".")
+      dotdot = pure (PathID "..")
   shrink = \case
-    PathID t -> PathID <$> filter validId (shrink t)
-    _ -> []
+    PathID _ Nothing -> []
+    PathSeg _ Nothing -> []
+    PathID t ts -> (PathID <$> filter validId (shrink t) <*> pure ts) <> (PathID t <$> trim ts)
+    PathSeg t ts -> (PathSeg <$> filter validComment (shrink t) <*> pure ts) <> (PathSeg t <$> trim ts)
+    where
+      trim Nothing = [Nothing]
+      trim (Just (s, p)) = Just . (,) s <$> shrink p
 
 instance Arbitrary Hash where
   arbitrary = Hash <$> smallList arbitrary

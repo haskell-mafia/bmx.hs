@@ -13,8 +13,9 @@ module BMX.Data.Token (
 
 import           Data.Data
 import           Data.Text (Text)
-import qualified Data.Text as T
 import           GHC.Generics
+
+import           BMX.Data.Format
 
 import           P
 
@@ -63,14 +64,3 @@ data Token
   | OpenBlockParams
   | CloseBlockParams
   deriving (Show, Eq, Generic, Data, Typeable)
-
--- | Formatting control
-data Format
-  = Strip
-  | Verbatim
-  deriving (Show, Eq, Generic, Data, Typeable)
-
-renderFormat :: Format -> Text
-renderFormat = \case
-  Strip    -> "~"
-  Verbatim -> T.empty

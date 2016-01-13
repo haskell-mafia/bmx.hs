@@ -21,7 +21,7 @@ newtype Program = Program [Stmt]
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr
-  | Partial Fmt Expr (Maybe Expr)
+  | PartialStmt Fmt Expr (Maybe Expr)
   | PartialBlock Fmt Fmt Expr (Maybe Expr) Program
   | Block Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
   | Inverse Fmt Program
@@ -30,7 +30,7 @@ data Stmt
   | RawBlock Expr Text
   | ContentStmt Text
   | CommentStmt Fmt Text
-  | Decorator Fmt Expr
+  | DecoratorStmt Fmt Expr
   | DecoratorBlock Fmt Fmt Expr Program
   deriving (Show, Eq, Generic, Data, Typeable)
 
@@ -41,6 +41,7 @@ data Expr
 
 data Literal
   = PathL Path
+  | DataL DataPath
   | StringL Text
   | NumberL Integer
   | BooleanL Bool
@@ -52,14 +53,11 @@ data BlockParams = BlockParams [Literal]
   deriving (Show, Eq, Generic, Data, Typeable)
 
 data Path
-  = Path [PathComponent]
-  | DataPath [PathComponent]
+  = PathID Text (Maybe (Char, Path))
+  | PathSeg Text (Maybe (Char, Path))
   deriving (Show, Eq, Generic, Data, Typeable)
 
-data PathComponent
-  = PathID Text
-  | PathSegment Text
-  | PathSep Char
+data DataPath = DataPath Path
   deriving (Show, Eq, Generic, Data, Typeable)
 
 data Hash = Hash [HashPair]
@@ -75,18 +73,17 @@ emptyHash :: Hash
 emptyHash = Hash []
 
 renderPath :: Path -> Text
-renderPath (Path pcs) = foldMap renderPathComponent pcs
-renderPath (DataPath pcs) = "@" <> foldMap renderPathComponent pcs
+renderPath = \case
+  PathID t ts -> t <> maybe T.empty (\(s, p) -> T.cons s (renderPath p)) ts
+  PathSeg t ts -> "[" <> t <> "]" <> maybe T.empty (\(s, p) -> T.cons s (renderPath p)) ts
 
-renderPathComponent :: PathComponent -> Text
-renderPathComponent = \case
-  PathID t -> t
-  PathSep c -> T.singleton c
-  PathSegment t -> "[" <> t <> "]"
+renderDataPath :: DataPath -> Text
+renderDataPath (DataPath p) = "@" <> renderPath p
 
 renderLiteral :: Literal -> Text
 renderLiteral = \case
   PathL p    -> renderPath p
+  DataL p    -> renderDataPath p
   StringL t  -> "\"" <> T.replace "\"" "\\\"" t <> "\""
   NumberL i  -> T.pack (show i)
   BooleanL b -> if b then "true" else "false"
@@ -117,7 +114,7 @@ renderStmt = \case
     openFormat l <> renderBareExpr e <> closeFormat r
   MustacheUnescaped (Fmt l r) e ->
     openFormat l <> "{" <> renderBareExpr e <> "}" <> closeFormat r
-  Partial (Fmt l r) e ctx ->
+  PartialStmt (Fmt l r) e ctx ->
     openFormat l <> ">" <> renderExpr e
        <> " " <> maybe T.empty renderBareExpr ctx
        <> closeFormat r
@@ -148,7 +145,7 @@ renderStmt = \case
   ContentStmt content -> content
   CommentStmt (Fmt l r) comment ->
     openFormat l <> "!--" <> comment <> "--" <> closeFormat r
-  Decorator (Fmt l r) e ->
+  DecoratorStmt (Fmt l r) e ->
     openFormat l <> "*" <> renderBareExpr e <> closeFormat r
   DecoratorBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
     openFormat l1 <> "#*" <> renderBareExpr e <> closeFormat r1
