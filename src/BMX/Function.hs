@@ -1,7 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wwarn #-} -- FIX remove
 module BMX.Function (
     Helper
   , Decorator
@@ -75,9 +74,9 @@ runHelper :: Monad m => [Value] -> Helper m -> BMX m Value
 runHelper _ (BlockHelper _) = err (TypeError "helper" "block helper")
 runHelper v (Helper h) = runFunctionT v h >>= either helpE return
 
-runBlockHelper :: Monad m => [Value] -> Helper m -> Program -> Program -> BMX m Page
-runBlockHelper _ (Helper _) _ _ = err (TypeError "block helper" "helper")
-runBlockHelper v (BlockHelper h) ifp elsep = do
+runBlockHelper :: Monad m => [Value] -> Program -> Program -> Helper m -> BMX m Page
+runBlockHelper _ _ _ (Helper _) = err (TypeError "block helper" "helper")
+runBlockHelper v ifp elsep (BlockHelper h) = do
   fun <- runFunctionT v (h ifp elsep)
   either helpE return fun
 

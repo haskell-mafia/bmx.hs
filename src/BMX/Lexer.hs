@@ -16,7 +16,7 @@ import qualified Text.Parsec as Parsec
 import           Text.Parsec.Text
 import           Text.Read (read)
 
-import           BMX.Data
+import           BMX.Data.Token
 
 import           P hiding (many, null)
 

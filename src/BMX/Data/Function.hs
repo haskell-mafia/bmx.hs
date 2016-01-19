@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -40,8 +41,8 @@ import           P
 type FunctionT m = EitherT FunctionError (StateT [Value] m)
 
 data FunctionError
-  = Mismatch Text
-  | Trailing Int
+  = Mismatch !Text !Text
+  | Trailing !Int
   | EOF
 
 instance Monoid FunctionError where
@@ -65,7 +66,7 @@ one :: Monad m => Text -> (Value -> Bool) -> FunctionT m Value
 one rule p = do
   st <- get
   case st of (x:xs) -> if p x then (put xs) >> return x
-                              else left (Mismatch rule)
+                              else left (Mismatch rule (renderValueType x))
              _      -> left EOF
 
 eof :: Monad m => FunctionT m ()
@@ -83,7 +84,7 @@ try p = do
 
 renderFunctionError :: FunctionError -> Text
 renderFunctionError = \case
-  Mismatch t -> "Type mismatch (expected " <> t <> ")"
+  Mismatch e a -> "Type mismatch (expected " <> e <> ", got " <> a <> ")"
   Trailing i -> "Too many arguments (" <> T.pack (show i) <> " unused)"
   EOF -> "Not enough arguments"
 

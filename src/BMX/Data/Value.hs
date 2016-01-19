@@ -5,6 +5,7 @@ module BMX.Data.Value (
     Context (..)
   , Value (..)
   , renderValue
+  , renderValueType
   , truthy
   , falsey
   ) where
@@ -39,7 +40,7 @@ renderValue = \case
   BoolV b -> if b then "true" else "false"
   NullV -> "null"
   UndefinedV -> "undefined"
-  ContextV _ -> "(object)"
+  ContextV _ -> "(object)" -- FIX this is almost never what we want
 
 truthy :: Value -> Bool
 truthy = \case
@@ -52,3 +53,12 @@ truthy = \case
 
 falsey :: Value -> Bool
 falsey = not . truthy
+
+renderValueType :: Value -> Text
+renderValueType = \case
+  StringV _ -> "string"
+  IntV _ -> "number"
+  BoolV _ -> "boolean"
+  ContextV _ -> "context"
+  NullV -> "null"
+  UndefinedV -> "undefined"

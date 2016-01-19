@@ -251,7 +251,7 @@ raw :: { Stmt }:
 -- Exprs, literals, atoms
 
 bare_expr :: { Expr }:
-    -- A SExp without parentheses.
+    -- A SExp without parentheses
     literal exprs hash               { SExp $1 (reverse $2) $3 }
 
 expr :: { Expr }:

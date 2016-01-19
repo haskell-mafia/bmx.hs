@@ -2,12 +2,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ViewPatterns #-}
 module BMX.Data.Eval (
   -- * Evaluation state and abstract functions on it
     EvalState (..)
   , pushContext
   , withContext
+  , withVariable
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
@@ -22,6 +22,8 @@ module BMX.Data.Eval (
   , warn
   , err
   , logs
+  , vlookup
+  , dlookup
   ) where
 
 import           Control.Monad.Identity
@@ -32,8 +34,11 @@ import qualified Data.DList as D
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
+import qualified Data.Text as T
+import           Safe (headMay)
 import           X.Control.Monad.Trans.Either
 
+import           BMX.Data.AST
 import           BMX.Data.Function
 import           BMX.Data.Value
 
@@ -48,17 +53,17 @@ import           P
 type BMX m = EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m))
 
 -- | Run a pure BMX action
-runBMX :: BMX Identity a -> (Either EvalError a, [EvalOutput])
-runBMX = fmap D.toList
+runBMX :: EvalState Identity -> BMX Identity a -> (Either EvalError a, [EvalOutput])
+runBMX st = fmap D.toList
   . runIdentity
-  . (`runReaderT` mempty) -- FIX user should pass env in
+  . (`runReaderT` st)
   . (`runStateT` mempty)
   . runEitherT
 
 -- | Run a BMX action in an IO monad
-runBMXIO :: MonadIO m => BMX m a -> m (Either EvalError a, [EvalOutput])
-runBMXIO b = do
-  (a, c) <- (`runReaderT` mempty) . (`runStateT` mempty) . runEitherT $ b
+runBMXIO :: MonadIO m => EvalState m -> BMX m a -> m (Either EvalError a, [EvalOutput])
+runBMXIO st b = do
+  (a, c) <- (`runReaderT` st) . (`runStateT` mempty) . runEitherT $ b
   return (a, D.toList c)
 
 warn :: Monad m => EvalWarning -> BMX m ()
@@ -81,11 +86,11 @@ data EvalState m = EvalState
     -- | Special variables set by various things. See http://handlebarsjs.com/reference.html.
   , evalData :: !(Map Text Value)
     -- | All currently available helpers.
-  , evalHelpers :: !(Map Text (HelperT m))
+  , evalHelpers :: !(Map Text (HelperT (BMX m)))
     -- | All currently available partials.
-  , evalPartials :: !(Map Text (PartialT m))
+  , evalPartials :: !(Map Text (PartialT (BMX m)))
     -- | All currently available decorators.
-  , evalDecorators :: !(Map Text (DecoratorT m))
+  , evalDecorators :: !(Map Text (DecoratorT (BMX m)))
   }
 
 instance Monoid (EvalState m) where
@@ -108,23 +113,66 @@ instance Monoid (EvalState m) where
 pushContext :: Monad m => Context -> EvalState m -> EvalState m
 pushContext !c es = es { evalContext = c : evalContext es }
 
+-- | Replace the current context with another.
+modifyContext :: Monad m => (Maybe Context -> Context) -> EvalState m -> EvalState m
+modifyContext fun es =
+  let newCtxs = case evalContext es of
+        [] -> fun Nothing : []
+        (x:xs) -> fun (Just x) : xs
+  in es { evalContext = newCtxs }
+
 -- | Push a new Context onto the stack for the duration of a single BMX action.
 withContext :: Monad m => Context -> BMX m a -> BMX m a
 withContext !c = local (pushContext c)
 
-{-
-vlookup :: Path -> BMX m (Maybe Value)
-vlookup = \case
-  Path pcs -> reader (gop pcs)
-  DataPath pcs -> reader (datap pcs)
+-- | Register a variable in the current context for one action.
+withVariable :: Monad m => Text -> Value -> BMX m a -> BMX m a
+withVariable key val k = shadowWarning >> local (modifyContext putVar) k
   where
-    gop :: [PathComponents] -> EvalState -> Maybe Value
-    gop _ (evalContext -> []) = Nothing
-    gop [] _ = Nothing
+    shadowWarning = do
+      mv <- vlookup (PathID key Nothing)
+      maybe (return ()) (const $ warn (ShadowValue key)) mv
+    --
+    putVar Nothing = Context $ M.insert key val M.empty
+    putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
-    gop (PathID t : []) (evalContext -> ((Context ctx): _)) = M.lookup t ctx
-    gop (SegmentID t : []) (evalContext -> ((Context ctx): _)) = M.lookup t ctx
--}
+-- | Look up a variable in the current context.
+vlookup :: Monad m => Path -> BMX m (Maybe Value)
+vlookup i = ask >>= (go i . evalContext)
+  where
+    -- Paths are allowed to start with parent / local references
+    go _ [] = return Nothing
+    go p (x:xs) = case (vname p, vrest p) of
+      (".", Nothing) -> return (Just (ContextV x))
+      ("..", Nothing) -> return (ContextV <$> headMay xs)
+      (".", Just (_, p')) -> going p' x
+      ("..", Just (_, p')) -> maybe (return Nothing) (going p') (headMay xs)
+      _ -> going p x
+    -- Traverse the rest of the path
+    going p ctx = case (vname p, vrest p) of
+      (t@".", _) -> err (InvalidPath t)
+      (t@"..", _) -> err (InvalidPath t)
+      (t, Nothing) -> return (resolve t ctx)
+      (t, Just (_, p')) -> maybe (return Nothing) (\(ContextV c) -> going p' c) (resolve t ctx)
+    --
+    resolve t (Context c) = M.lookup t c
+    --
+    vname = \case
+      PathID t _ -> t
+      PathSeg t _ -> t
+    --
+    vrest = \case
+      PathID _ r -> r
+      PathSeg _ r -> r
+
+-- | Look up a @data variable in the current context.
+dlookup :: Monad m => DataPath -> BMX m (Maybe Value)
+dlookup (DataPath p) = ask >>= \es ->
+  let d = evalData es in case p of
+    PathID t Nothing -> return (M.lookup t d)
+    PathSeg t Nothing -> return (M.lookup t d)
+    _ -> return Nothing
+
 
 -- -----------------------------------------------------------------------------
 -- Evaluation errors and warnings
@@ -134,6 +182,10 @@ data EvalError
   | HelperError FunctionError
   | PartialError FunctionError
   | DecoratorError FunctionError
+  | InvalidPath Text
+  | NoSuchPartial Text
+  | NoSuchDecorator Text
+  | NoSuchBlockHelper Text
 
 data EvalOutput
   = Warning EvalWarning
@@ -141,6 +193,9 @@ data EvalOutput
 
 data EvalWarning
   = WarnDNE Text
+  | NoSuchHelper Text
+  | NoSuchValue Text
+  | ShadowValue Text
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -148,6 +203,10 @@ renderEvalError = \case
   HelperError !fe -> "Helper misuse: " <> renderFunctionError fe
   PartialError !fe -> "Partial misuse: " <> renderFunctionError fe
   DecoratorError !fe -> "Decorator misuse: " <> renderFunctionError fe
+  InvalidPath !t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
+  NoSuchPartial !t -> "Partial " <> t <> " is not defined"
+  NoSuchDecorator !t -> "Decorator " <> t <> " is not defined"
+  NoSuchBlockHelper !t -> "Block helper " <> t <> " is not defined"
 
 renderEvalOutput :: EvalOutput -> Text
 renderEvalOutput = \case
@@ -156,4 +215,7 @@ renderEvalOutput = \case
 
 renderEvalWarning :: EvalWarning -> Text
 renderEvalWarning = \case
-  WarnDNE !t -> t <> "does not exist"
+  WarnDNE !t -> t <> " does not exist"
+  NoSuchHelper !t -> "Helper " <> t <> " is not defined"
+  NoSuchValue !t -> "Value " <> t <> " is not defined"
+  ShadowValue !t -> "The local definition of value " <> t <> " shadows an existing binding"

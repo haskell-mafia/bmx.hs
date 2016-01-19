@@ -114,14 +114,14 @@ instance Arbitrary Path where
       rest n = fmap Just . (,) <$> elements ['.', '/'] <*> paths n
       slashrest n = fmap Just . (,) <$> pure '/' <*> paths n
       reg = PathID <$> arbitrary `suchThat` validId
-      seg = PathSeg <$> arbitrary `suchThat` validComment
+      seg = PathSeg <$> arbitrary `suchThat` validSegId
       dot = pure (PathID ".")
       dotdot = pure (PathID "..")
   shrink = \case
     PathID _ Nothing -> []
     PathSeg _ Nothing -> []
     PathID t ts -> (PathID <$> filter validId (shrink t) <*> pure ts) <> (PathID t <$> trim ts)
-    PathSeg t ts -> (PathSeg <$> filter validComment (shrink t) <*> pure ts) <> (PathSeg t <$> trim ts)
+    PathSeg t ts -> (PathSeg <$> filter validSegId (shrink t) <*> pure ts) <> (PathSeg t <$> trim ts)
     where
       trim Nothing = [Nothing]
       trim (Just (s, p)) = Just . (,) s <$> shrink p

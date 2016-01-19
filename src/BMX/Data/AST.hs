@@ -63,6 +63,10 @@ data DataPath = DataPath Path
 data Hash = Hash [HashPair]
   deriving (Show, Eq, Generic, Data, Typeable)
 
+instance Monoid Hash where
+  mempty = Hash []
+  mappend (Hash a) (Hash b) = Hash (a <> b)
+
 data HashPair = HashPair Text Expr
   deriving (Show, Eq, Generic, Data, Typeable)
 

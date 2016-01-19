@@ -8,8 +8,7 @@ import           System.IO
 import           BMX
 import           BMX.Data
 import           BMX.Eval
-import           BMX.Lexer
-import           BMX.Parser
+import           BMX.Helpers
 
 import           P
 
@@ -23,5 +22,5 @@ main = do
         either (scream . renderEvalError) (T.putStrLn . renderPage) epage
         mapM_ (scream . renderEvalOutput) er
   either (const $ return ())
-         (drawResult . runBMX . evalProgram)
+         (drawResult . runBMX defaultEvalState . evalProgram)
          parsed
