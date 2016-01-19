@@ -17,6 +17,8 @@ import           Test.QuickCheck.Instances ()
 import           BMX.Data
 import           BMX.Lexer
 
+import           Test.BMX.Orphans ()
+
 import           P
 
 --------------------------------------------------------------------------------
@@ -34,11 +36,11 @@ instance Arbitrary Page where
 --------------------------------------------------------------------------------
 -- AST / parser generators
 
-instance Arbitrary Program where
+instance Arbitrary Template where
   -- Adjacent ContentStmt clauses need to get concatenated.
-  -- Do this recursively across all Program fragments in the tree via syb
-  arbitrary = everywhere (mkT merge) . Program <$> smallList arbitrary
-  shrink (Program sts) = everywhere (mkT merge) . Program <$> shrinkList shrink sts
+  -- Do this recursively across all template fragments in the tree via syb
+  arbitrary = everywhere (mkT merge) . Template <$> smallList arbitrary
+  shrink (Template sts) = everywhere (mkT merge) . Template <$> shrinkList shrink sts
 
 instance Arbitrary Stmt where
   arbitrary = oneof [
@@ -46,8 +48,8 @@ instance Arbitrary Stmt where
     , MustacheUnescaped <$> arbitrary <*> bareExpr
     , PartialStmt <$> arbitrary <*> bareExpr <*> expmay
     , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> expmay <*> body
-    , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverseChain
-    , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverse
+    , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverseChain
+    , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverse
     , RawBlock <$> bareExpr <*> rawContent
     , ContentStmt <$> arbitrary `suchThat` validContent
     , CommentStmt <$> arbitrary <*> arbitrary `suchThat` validComment
@@ -55,14 +57,13 @@ instance Arbitrary Stmt where
     , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
     ]
     where
-      bparams = oneof [pure Nothing, arbitrary]
-      body = Program <$> smaller (smallList arbitrary)
+      body = Template <$> smaller (smallList arbitrary)
       inverseChain = smaller $ sized goInverse
-      goInverse 0 = pure Nothing
-      goInverse n = oneof [pure Nothing, inverse, inverseChain' n]
-      inverseChain' n = fmap Just $
-        InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
-      inverse = fmap Just $ Inverse <$> arbitrary <*> body
+      goInverse 0 = inverse
+      goInverse n = oneof [inverse, inverseChain' n]
+      inverseChain' n = fmap (Template . (:[])) $
+        InverseChain <$> arbitrary <*> bareExpr <*> arbitrary <*> body <*> goInverse (n `div` 2)
+      inverse = fmap (Template . (:[])) $ Inverse <$> arbitrary <*> body
       expmay = elements [Just, const Nothing] <*> bareExpr
   shrink = \case
     ContentStmt t -> ContentStmt <$> filter validContent (shrink t)
@@ -152,8 +153,8 @@ smallList g = sized go
 smaller :: Gen a -> Gen a
 smaller g = sized $ \s -> resize (s `div` 2) g
 
-merge :: Program -> Program
-merge (Program ps) = Program (go ps)
+merge :: Template -> Template
+merge (Template ps) = Template (go ps)
   where
     go (ContentStmt t1 : ContentStmt t2 : xs) = go (ContentStmt (t1 <> t2) : xs)
     go (x : xs) = x : go xs
@@ -185,7 +186,7 @@ validSegId t = and [noEscape t, noNull t, T.takeEnd 1 t /= "\\"]
 rawContent :: Gen Text
 rawContent = do
   ts <- sized $ \s -> resize (min s 5) arbitrary
-  pure (renderProgram ts)
+  pure (renderTemplate ts)
 
 -- | Allow only escaped Mustache expressions
 noMustaches :: Text -> Bool

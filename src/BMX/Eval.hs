@@ -2,7 +2,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Eval (
-    evalProgram
+    eval
   ) where
 
 import           Control.Monad.Reader hiding (mapM)
@@ -14,8 +14,8 @@ import BMX.Function
 
 import P
 
-evalProgram :: Monad m => Program -> BMX m Page
-evalProgram (Program ss) = concatMapM evalStmt ss
+eval :: Monad m => Template -> BMX m Page
+eval (Template ss) = concatMapM evalStmt ss
 
 evalStmt :: Monad m => Stmt -> BMX m Page
 evalStmt = \case
@@ -24,7 +24,7 @@ evalStmt = \case
   Mustache (Fmt l r) e -> liftM escapePage (evalMustache l r e)
   MustacheUnescaped (Fmt l r) e -> evalMustache l r e
   Block (Fmt l1 r1) (Fmt l2 r2) e bp b i -> evalBlock l1 r1 l2 r2 e bp b i
-  Inverse (Fmt l r) p -> liftM ((page l r T.empty) <>) (evalProgram p)
+  Inverse (Fmt l r) p -> liftM ((page l r T.empty) <>) (eval p)
   _ -> return mempty
 
 evalExpr :: Monad m => Expr -> BMX m Value
@@ -54,7 +54,7 @@ evalMustache l r e = do
 
 
 evalBlock :: Monad m => Format -> Format -> Format -> Format
-          -> Expr -> Maybe BlockParams -> Program -> (Maybe Stmt)
+          -> Expr -> BlockParams -> Template -> Template
           -> BMX m Page
 evalBlock l1 r1 l2 r2 e _bp block inverse = case e of
   Lit l -> do
@@ -62,7 +62,7 @@ evalBlock l1 r1 l2 r2 e _bp block inverse = case e of
     -- FIX blockparams?
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral l)))
-              (runBlockHelper [] block pinverse)
+              (runBlockHelper [] block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -71,12 +71,10 @@ evalBlock l1 r1 l2 r2 e _bp block inverse = case e of
     args <- mapM evalExpr p
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral h)))
-              (withHash hash . runBlockHelper args block pinverse)
+              (withHash hash . runBlockHelper args block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
-  where pinverse = maybe (Program []) (\i -> Program [i]) inverse
-        -- FIX just store it as a Program in the AST
 
 
 {-

@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -11,16 +9,14 @@ module BMX.Data.Token (
   , renderFormat
   ) where
 
-import           Data.Data
 import           Data.Text (Text)
-import           GHC.Generics
 
 import           BMX.Data.Format
 
 import           P
 
 newtype Tokens = Tokens { unTokens :: [Token] }
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Token
   -- * Raw Web Content
@@ -63,4 +59,4 @@ data Token
   | Null
   | OpenBlockParams
   | CloseBlockParams
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)

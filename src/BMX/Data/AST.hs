@@ -1,43 +1,39 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.AST where
 
-import           Data.Data
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           GHC.Generics
 
 import           BMX.Data.Token
 
 import           P
 
-newtype Program = Program [Stmt]
-  deriving (Show, Eq, Generic, Data, Typeable)
+newtype Template = Template [Stmt]
+  deriving (Show, Eq)
 
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr
   | PartialStmt Fmt Expr (Maybe Expr)
-  | PartialBlock Fmt Fmt Expr (Maybe Expr) Program
-  | Block Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
-  | Inverse Fmt Program
-  | InverseChain Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
-  | InverseBlock Fmt Fmt Expr (Maybe BlockParams) Program (Maybe Stmt)
+  | PartialBlock Fmt Fmt Expr (Maybe Expr) Template
+  | Block Fmt Fmt Expr BlockParams Template Template
+  | Inverse Fmt Template
+  | InverseChain Fmt Expr BlockParams Template Template
+  | InverseBlock Fmt Fmt Expr BlockParams Template Template
   | RawBlock Expr Text
   | ContentStmt Text
   | CommentStmt Fmt Text
   | DecoratorStmt Fmt Expr
-  | DecoratorBlock Fmt Fmt Expr Program
-  deriving (Show, Eq, Generic, Data, Typeable)
+  | DecoratorBlock Fmt Fmt Expr Template
+  deriving (Show, Eq)
 
 data Expr
   = Lit Literal
   | SExp Literal [Expr] Hash
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Literal
   = PathL Path
@@ -47,31 +43,31 @@ data Literal
   | BooleanL Bool
   | UndefinedL
   | NullL
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data BlockParams = BlockParams [Literal]
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Path
   = PathID Text (Maybe (Char, Path))
   | PathSeg Text (Maybe (Char, Path))
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data DataPath = DataPath Path
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Hash = Hash [HashPair]
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 instance Monoid Hash where
   mempty = Hash []
   mappend (Hash a) (Hash b) = Hash (a <> b)
 
 data HashPair = HashPair Text Expr
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Fmt = Fmt Format Format
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 emptyHash :: Hash
 emptyHash = Hash []
@@ -126,22 +122,22 @@ renderStmt = \case
     openFormat l1 <> "#>" <> renderExpr e
       <> " " <> maybe T.empty renderBareExpr ctx
       <> closeFormat r1
-      <> renderProgram body
+      <> renderTemplate body
       <> closeBlock l2 r2 e
   Block (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
     openFormat l1 <> "#" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
-      <> renderProgram body
+      <> renderTemplate body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
   Inverse (Fmt l r) body ->
-    openFormat l <> "^" <> closeFormat r <> renderProgram body
+    openFormat l <> "^" <> closeFormat r <> renderTemplate body
   InverseChain (Fmt l r) e bparams body inverse ->
     openFormat l <> "else " <> renderBareExpr e <> blockParams bparams <> closeFormat r
-      <> renderProgram body
+      <> renderTemplate body
       <> inverseMay inverse
   InverseBlock (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
     openFormat l1 <> "^" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
-      <> renderProgram body
+      <> renderTemplate body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
   RawBlock e content ->
@@ -153,16 +149,16 @@ renderStmt = \case
     openFormat l <> "*" <> renderBareExpr e <> closeFormat r
   DecoratorBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
     openFormat l1 <> "#*" <> renderBareExpr e <> closeFormat r1
-      <> renderProgram body
+      <> renderTemplate body
       <> closeBlock l2 r2 e
   where
     openFormat f = "{{" <> renderFormat f
     closeFormat f = renderFormat f <> "}}"
     exprHelper (Lit lit) = renderLiteral lit
     exprHelper (SExp lit _ _) = renderLiteral lit
-    blockParams = maybe T.empty renderBlockParams
-    inverseMay = maybe T.empty renderStmt
+    blockParams = renderBlockParams
+    inverseMay = renderTemplate
     closeBlock l r e = openFormat l <> "/" <> exprHelper e <> closeFormat r
 
-renderProgram :: Program -> Text
-renderProgram (Program ss) = foldMap renderStmt ss
+renderTemplate :: Template -> Text
+renderTemplate (Template ss) = foldMap renderStmt ss

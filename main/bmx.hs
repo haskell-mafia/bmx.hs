@@ -22,5 +22,5 @@ main = do
         either (scream . renderEvalError) (T.putStrLn . renderPage) epage
         mapM_ (scream . renderEvalOutput) er
   either (const $ return ())
-         (drawResult . runBMX defaultEvalState . evalProgram)
+         (drawResult . runBMX defaultEvalState . eval)
          parsed

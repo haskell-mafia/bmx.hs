@@ -64,8 +64,8 @@ import           P
 
 %%
 
-program :: { program }:
-    statements                     { Program (reverse $1) }
+template :: { Template }:
+    statements                     { Template (reverse $1) }
 
 statements :: { [Stmt] }:
     statements statement           { $2 : $1 }
@@ -115,7 +115,7 @@ block :: { Stmt }:
               else Left (blockError "Block" expected actual)
       }
 
-do_open_block :: { (Fmt, Expr, Maybe BlockParams) }:
+do_open_block :: { (Fmt, Expr, BlockParams) }:
     open_block bare_expr block_params close { (Fmt $1 $4, $2, $3) }
 
 do_close_block :: { (Fmt, Literal) }:
@@ -144,7 +144,7 @@ inverse_block :: { Stmt }:
               else Left (blockError "Inverse block" expected actual)
       }
 
-open_inverse_block :: { (Fmt, Expr, Maybe BlockParams) }:
+open_inverse_block :: { (Fmt, Expr, BlockParams) }:
     open_inverse bare_expr block_params close { (Fmt $1 $4, $2, $3) }
 
 {-
@@ -155,10 +155,10 @@ open_inverse_block :: { (Fmt, Expr, Maybe BlockParams) }:
   everything after its Inverse is evaluated instead.
   An Inverse terminates the block, i.e. it can't be followed by a chained inverse.
 -}
-inverse :: { Maybe Stmt }:
-    open_inverse close statements          { Just $ Inverse (Fmt $1 $2) (prg $3) }
-  | open_inverse_chain close statements    { Just $ Inverse (Fmt $1 $2) (prg $3) }
-  | {- empty -}                            { Nothing }
+inverse :: { Template }:
+    open_inverse close statements          { Template [Inverse (Fmt $1 $2) (prg $3)] }
+  | open_inverse_chain close statements    { Template [Inverse (Fmt $1 $2) (prg $3)] }
+  | {- empty -}                            { Template [] }
 
 {-
   {{# some block here }}
@@ -171,15 +171,15 @@ inverse :: { Maybe Stmt }:
   the final clause
   {{/some}}
 -}
-inverse_chain :: { Maybe Stmt }:
+inverse_chain :: { Template }:
     do_open_inverse_chain statements inverse_chain
       {
         let (fmt, expr, bparams) = $1
-        in  Just $ InverseChain fmt expr bparams (prg $2) $3
+        in  Template [InverseChain fmt expr bparams (prg $2) $3]
       }
   | inverse                           { $1 }
 
-do_open_inverse_chain :: { (Fmt, Expr, Maybe BlockParams) }:
+do_open_inverse_chain :: { (Fmt, Expr, BlockParams) }:
     open_inverse_chain bare_expr block_params close { (Fmt $1 $4, $2, $3) }
 
 -- -----------------------------------------------------------------------------
@@ -287,9 +287,9 @@ hash_pairs :: { [HashPair] }:
     ident equals expr hash_pairs   { HashPair $1 $3 : $4 }
   | {- empty -}                    { [] }
 
-block_params :: { Maybe BlockParams }:
-    open_block_params names close_block_params { Just $ BlockParams (reverse $2) }
-  | {- empty -}                    { Nothing }
+block_params :: { BlockParams }:
+    open_block_params names close_block_params { BlockParams (reverse $2) }
+  | {- empty -}                    { BlockParams [] }
 
 names :: { [Literal] }:
   -- Used only in BlockParams, where the LHS of each pair must be a 'simple' name
@@ -306,8 +306,8 @@ newtype ParseError = ParseError { renderParseError :: Text }
 
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
-prg :: [Stmt] -> Program
-prg = Program . reverse
+prg :: [Stmt] -> Template
+prg = Template . reverse
 
 -- Extract the helper name from an Expr
 exprHelper :: Expr -> Maybe Text

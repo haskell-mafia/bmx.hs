@@ -4,12 +4,12 @@
 {-# OPTIONS_GHC -Wwarn #-}
 module Test.BMX.Parser where
 
+import           Disorder.Core
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
-import           BMX.Data (renderProgram)
-import           BMX.Lexer (tokenise, LexError (..))
-import           BMX.Parser (parse, ParseError (..))
+import           BMX (templateFromText)
+import           BMX.Data (renderTemplate)
 
 import           Test.BMX.Arbitrary ()
 
@@ -17,17 +17,12 @@ import           P
 
 --------------------------------------------------------------------------------
 
-prop_parse_roundtrip p =
-  let parsed = either (Left . ParseError . (<>) "Lexer error: " . renderLexError) parse . tokenise
-  in  parsed (renderProgram p) === pure p
+prop_parse_roundtrip p = tripping renderTemplate templateFromText p
 
 --------------------------------------------------------------------------------
 -- dopey regression tests
 
-doesParse text = isRight parsed
-  where
-    tokens = tokenise text
-    parsed = either (Left . ParseError . (<>) "Lexer error: " . renderLexError) parse tokens
+doesParse text = isRight (templateFromText text)
 
 prop_basic_mustache = once . doesParse $
   "{{mustache expression}}"

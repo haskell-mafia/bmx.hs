@@ -23,14 +23,14 @@ helper_noop = BlockHelper $ \_ _ -> return mempty
 helper_if :: (Applicative m, Monad m) => Helper m
 helper_if = BlockHelper $ \thenp elsep -> do
   v <- value
-  liftBMX . evalProgram $ if truthy v then thenp else elsep
+  liftBMX $ if truthy v then eval thenp else eval elsep
 
 -- | The "with" block helper. Accept a Context as argument.
 helper_with :: (Applicative m, Monad m) => Helper m
 helper_with = BlockHelper $ \thenp elsep -> do
   ctx <- optional context
-  liftBMX $ maybe (evalProgram elsep)
-                  (\c -> withContext c (evalProgram thenp))
+  liftBMX $ maybe (eval elsep)
+                  (\c -> withContext c (eval thenp))
                   ctx
 
 -- | The "log" helper. Writes every argument to the log in a single line.

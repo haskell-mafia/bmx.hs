@@ -74,7 +74,7 @@ runHelper :: Monad m => [Value] -> Helper m -> BMX m Value
 runHelper _ (BlockHelper _) = err (TypeError "helper" "block helper")
 runHelper v (Helper h) = runFunctionT v h >>= either helpE return
 
-runBlockHelper :: Monad m => [Value] -> Program -> Program -> Helper m -> BMX m Page
+runBlockHelper :: Monad m => [Value] -> Template -> Template -> Helper m -> BMX m Page
 runBlockHelper _ _ _ (Helper _) = err (TypeError "block helper" "helper")
 runBlockHelper v ifp elsep (BlockHelper h) = do
   fun <- runFunctionT v (h ifp elsep)
@@ -105,7 +105,7 @@ withDecorator _ (BlockDecorator _) _ = err (TypeError "decorator" "block decorat
 withDecorator v (Decorator d) k = runFunctionT v (d k) >>= either decoE return
 
 -- | Run a block decorator, then a continuation
-withBlockDecorator :: Monad m => [Value] -> Program -> Decorator m -> BMX m Page -> BMX m Page
+withBlockDecorator :: Monad m => [Value] -> Template -> Decorator m -> BMX m Page -> BMX m Page
 withBlockDecorator _ _ (Decorator _) _ = err (TypeError "block decorator" "decorator")
 withBlockDecorator v b (BlockDecorator d) k = runFunctionT v (d b k) >>= either decoE return
 
