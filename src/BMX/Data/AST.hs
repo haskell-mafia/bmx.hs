@@ -48,6 +48,10 @@ data Literal
 data BlockParams = BlockParams [Literal]
   deriving (Show, Eq)
 
+instance Monoid BlockParams where
+  mempty = BlockParams []
+  mappend (BlockParams a) (BlockParams b) = BlockParams (mappend a b)
+
 data Path
   = PathID Text (Maybe (Char, Path))
   | PathSeg Text (Maybe (Char, Path))

@@ -19,6 +19,11 @@ import           P
 helper_noop :: (Applicative m, Monad m) => Helper m
 helper_noop = BlockHelper $ \_ _ -> return mempty
 
+-- | The "return" block helper. Renders the left branch.
+helper_return :: (Applicative m, Monad m) => Helper m
+helper_return = BlockHelper $ \left _ ->
+  liftBMX $ eval left
+
 -- | The "if" block helper.
 helper_if :: (Applicative m, Monad m) => Helper m
 helper_if = BlockHelper $ \thenp elsep -> do
@@ -44,10 +49,21 @@ helper_log = Helper $ do
 builtinHelpers :: (Applicative m, Monad m) => Map Text (Helper m)
 builtinHelpers = M.fromList [
     ("noop", helper_noop)
+  , ("return", helper_return)
   , ("if", helper_if)
   , ("with", helper_with)
   , ("log", helper_log)
   ]
+
+-- | The "inline" block decorator. Turns the block argument into a partial
+-- with the name of the first argument.
+decorator_inline :: (Applicative m, Monad m) => Decorator m
+decorator_inline = BlockDecorator $ \block k -> do
+  (StringV name) <- string
+  liftBMX $ do
+    let newPartial = Partial (eval block)
+    withPartial name newPartial k
+
 
 -- FIX this also doesn't belong here
 -- FIX pass context in?
@@ -56,8 +72,8 @@ defaultEvalState = EvalState {
     evalContext = [testContext]
   , evalData = M.empty
   , evalHelpers = builtinHelpers
-  , evalPartials = M.empty
-  , evalDecorators = M.empty
+  , evalPartials = M.insert "authorid" testPartial M.empty
+  , evalDecorators = M.insert "inline" decorator_inline M.empty
   }
 
 -- FIX this must also go
@@ -71,3 +87,15 @@ testContext = Context $ M.fromList [
   , ("body", StringV "My first post. Wheeeee!")
   , ("html", StringV "<a href=\"google.com\">Cool Site</a>")
   ]
+
+-- FIX temporary test value
+testPartial :: (Applicative m, Monad m) => Partial m
+testPartial = Partial . eval $
+  Template
+    [ ContentStmt "The author's name is "
+    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))
+    , ContentStmt " and their ID is "
+    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "id" Nothing)) [] (Hash []))
+    , ContentStmt " arg = "
+    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "arg" Nothing)) [] (Hash []))
+    ]

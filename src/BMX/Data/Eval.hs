@@ -8,6 +8,7 @@ module BMX.Data.Eval (
   , pushContext
   , withContext
   , withVariable
+  , withPartial
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
@@ -15,15 +16,18 @@ module BMX.Data.Eval (
   , renderEvalOutput
   , EvalWarning (..)
   , renderEvalWarning
-  -- * Specialised RW monad for evaluation
+  -- * Evaluation monad
   , BMX
   , runBMX
   , runBMXIO
   , warn
   , err
   , logs
-  , vlookup
-  , dlookup
+  , lookupValue
+  , lookupData
+  , lookupHelper
+  , lookupPartial
+  , lookupDecorator
   ) where
 
 import           Control.Monad.Identity
@@ -130,15 +134,25 @@ withVariable :: Monad m => Text -> Value -> BMX m a -> BMX m a
 withVariable key val k = shadowWarning >> local (modifyContext putVar) k
   where
     shadowWarning = do
-      mv <- vlookup (PathID key Nothing)
+      mv <- lookupValue (PathID key Nothing)
       maybe (return ()) (const $ warn (ShadowValue key)) mv
     --
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
+-- | Register a partial in the current context for one action.
+withPartial :: Monad m => Text -> PartialT (BMX m) -> BMX m a -> BMX m a
+withPartial name p k = shadowWarning >> local addPartial k
+  where
+    shadowWarning = do
+      mv <- lookupPartial (PathID name Nothing)
+      maybe (return ()) (const $ warn (ShadowPartial name)) mv
+    --
+    addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
+
 -- | Look up a variable in the current context.
-vlookup :: Monad m => Path -> BMX m (Maybe Value)
-vlookup i = ask >>= (go i . evalContext)
+lookupValue :: Monad m => Path -> BMX m (Maybe Value)
+lookupValue i = ask >>= (go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -166,13 +180,27 @@ vlookup i = ask >>= (go i . evalContext)
       PathSeg _ r -> r
 
 -- | Look up a @data variable in the current context.
-dlookup :: Monad m => DataPath -> BMX m (Maybe Value)
-dlookup (DataPath p) = ask >>= \es ->
+lookupData :: Monad m => DataPath -> BMX m (Maybe Value)
+lookupData (DataPath p) = ask >>= \es ->
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
     PathSeg t Nothing -> return (M.lookup t d)
     _ -> return Nothing
 
+lookupHelper :: Monad m => Path -> BMX m (Maybe (HelperT (BMX m)))
+lookupHelper p = do
+  st <- ask
+  return $ M.lookup (renderPath p) (evalHelpers st)
+
+lookupPartial :: Monad m => Path -> BMX m (Maybe (PartialT (BMX m)))
+lookupPartial p = do
+  st <- ask
+  return $ M.lookup (renderPath p) (evalPartials st)
+
+lookupDecorator :: Monad m => Path -> BMX m (Maybe (DecoratorT (BMX m)))
+lookupDecorator p = do
+  st <- ask
+  return $ M.lookup (renderPath p) (evalDecorators st)
 
 -- -----------------------------------------------------------------------------
 -- Evaluation errors and warnings
@@ -186,6 +214,8 @@ data EvalError
   | NoSuchPartial Text
   | NoSuchDecorator Text
   | NoSuchBlockHelper Text
+  | ENoSuchValue Text
+  | SomeError Text
 
 data EvalOutput
   = Warning EvalWarning
@@ -196,6 +226,7 @@ data EvalWarning
   | NoSuchHelper Text
   | NoSuchValue Text
   | ShadowValue Text
+  | ShadowPartial Text
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -207,6 +238,8 @@ renderEvalError = \case
   NoSuchPartial !t -> "Partial " <> t <> " is not defined"
   NoSuchDecorator !t -> "Decorator " <> t <> " is not defined"
   NoSuchBlockHelper !t -> "Block helper " <> t <> " is not defined"
+  ENoSuchValue !t -> "Value " <> t <> " is not defined"
+  SomeError !t -> "Error: " <> t
 
 renderEvalOutput :: EvalOutput -> Text
 renderEvalOutput = \case
@@ -219,3 +252,4 @@ renderEvalWarning = \case
   NoSuchHelper !t -> "Helper " <> t <> " is not defined"
   NoSuchValue !t -> "Value " <> t <> " is not defined"
   ShadowValue !t -> "The local definition of value " <> t <> " shadows an existing binding"
+  ShadowPartial !t -> "The local definition of partial " <> t <> " shadows an existing binding"
