@@ -3,12 +3,18 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.Eval (
-  -- * Evaluation state and abstract functions on it
+  -- * Evaluation state and abstract functions over it
     EvalState (..)
   , pushContext
   , withContext
   , withVariable
+  , withData
   , withPartial
+  , lookupValue
+  , lookupData
+  , lookupHelper
+  , lookupPartial
+  , lookupDecorator
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
@@ -23,11 +29,6 @@ module BMX.Data.Eval (
   , warn
   , err
   , logs
-  , lookupValue
-  , lookupData
-  , lookupHelper
-  , lookupPartial
-  , lookupDecorator
   ) where
 
 import           Control.Monad.Identity
@@ -43,6 +44,7 @@ import           Safe (headMay)
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
+import           BMX.Data.Data
 import           BMX.Data.Function
 import           BMX.Data.Value
 
@@ -87,8 +89,9 @@ err = left
 data EvalState m = EvalState
   { -- | Stack of contexts, current on top.
     evalContext :: !([Context])
-    -- | Special variables set by various things. See http://handlebarsjs.com/reference.html.
-  , evalData :: !(Map Text Value)
+    -- | Special variables set by various things. Can be values, partials, etc.
+    -- See http://handlebarsjs.com/reference.html.
+  , evalData :: !(Map Text (DataT (BMX m)))
     -- | All currently available helpers.
   , evalHelpers :: !(Map Text (HelperT (BMX m)))
     -- | All currently available partials.
@@ -140,6 +143,16 @@ withVariable key val k = shadowWarning >> local (modifyContext putVar) k
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
+-- | Register a data variable in the current context for one action.
+withData :: Monad m => Text -> DataT (BMX m) -> BMX m a -> BMX m a
+withData key val k = shadowWarning >> local addData k
+  where
+    shadowWarning = do
+      md <- lookupData (DataPath (PathID key Nothing))
+      maybe (return ()) (const $ warn (ShadowData key)) md
+    --
+    addData es = es { evalData = M.insert key val (evalData es) }
+
 -- | Register a partial in the current context for one action.
 withPartial :: Monad m => Text -> PartialT (BMX m) -> BMX m a -> BMX m a
 withPartial name p k = shadowWarning >> local addPartial k
@@ -167,9 +180,13 @@ lookupValue i = ask >>= (go i . evalContext)
       (t@".", _) -> err (InvalidPath t)
       (t@"..", _) -> err (InvalidPath t)
       (t, Nothing) -> return (resolve t ctx)
-      (t, Just (_, p')) -> maybe (return Nothing) (\(ContextV c) -> going p' c) (resolve t ctx)
+      (t, Just (_, p')) -> maybe (return Nothing) (step p') (resolve t ctx)
     --
     resolve t (Context c) = M.lookup t c
+    step p = \case
+      ContextV c -> going p c
+      ListV _l -> err (SomeError "indexing into lists unimplemented") -- goingl p l
+      _ -> return Nothing
     --
     vname = \case
       PathID t _ -> t
@@ -180,7 +197,7 @@ lookupValue i = ask >>= (go i . evalContext)
       PathSeg _ r -> r
 
 -- | Look up a @data variable in the current context.
-lookupData :: Monad m => DataPath -> BMX m (Maybe Value)
+lookupData :: Monad m => DataPath -> BMX m (Maybe (DataT (BMX m)))
 lookupData (DataPath p) = ask >>= \es ->
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
@@ -206,16 +223,18 @@ lookupDecorator p = do
 -- Evaluation errors and warnings
 
 data EvalError
-  = TypeError Text Text
-  | HelperError FunctionError
-  | PartialError FunctionError
-  | DecoratorError FunctionError
-  | InvalidPath Text
-  | NoSuchPartial Text
-  | NoSuchDecorator Text
-  | NoSuchBlockHelper Text
-  | ENoSuchValue Text
-  | SomeError Text
+  = TypeError Text Text -- ^ A type error, with "expected" and "actual" fields.
+  | HelperError FunctionError -- ^ Incorrect arguments for a Helper.
+  | PartialError FunctionError -- ^ Incorrect arguments for a Partial.
+  | DecoratorError FunctionError -- ^ Incorrect arguments for a Decorator.
+  | InvalidPath Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
+  | NoSuchPartial Text -- ^ An invoked partial was not found, and there was no failover template.
+  | NoSuchDecorator Text -- ^ An invoked decorator was not found.
+  | NoSuchBlockHelper Text -- ^ An invoked block helper was not found.
+  | ENoSuchValue Text -- ^ A variable was not found, and it was unsafe to proceed.
+  | ParserError Text -- ^ An absurd case - indicative of an error in the parser.
+  | Unrenderable Text -- ^ Attempt to render an undefined, list or context.
+  | SomeError Text -- ^ This case should be removed before BMX ships.
 
 data EvalOutput
   = Warning EvalWarning
@@ -227,6 +246,7 @@ data EvalWarning
   | NoSuchValue Text
   | ShadowValue Text
   | ShadowPartial Text
+  | ShadowData Text
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -239,6 +259,8 @@ renderEvalError = \case
   NoSuchDecorator !t -> "Decorator " <> t <> " is not defined"
   NoSuchBlockHelper !t -> "Block helper " <> t <> " is not defined"
   ENoSuchValue !t -> "Value " <> t <> " is not defined"
+  ParserError !t -> "Parser error: " <> t
+  Unrenderable !t -> "Invalid mustache: cannot render " <> t
   SomeError !t -> "Error: " <> t
 
 renderEvalOutput :: EvalOutput -> Text
@@ -253,3 +275,4 @@ renderEvalWarning = \case
   NoSuchValue !t -> "Value " <> t <> " is not defined"
   ShadowValue !t -> "The local definition of value " <> t <> " shadows an existing binding"
   ShadowPartial !t -> "The local definition of partial " <> t <> " shadows an existing binding"
+  ShadowData !t -> "The local definition of data variable @" <> t <> " shadows an existing binding"

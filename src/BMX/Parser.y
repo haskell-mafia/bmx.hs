@@ -193,25 +193,25 @@ do_open_inverse_chain :: { (Fmt, Expr, BlockParams) }:
   {{> partial withContext abc=def}}
 -}
 partial :: { Stmt }:
-    open_partial expr bare_expr close     { PartialStmt (Fmt $1 $4) $2 (Just $3) }
-  | open_partial expr close               { PartialStmt (Fmt $1 $3) $2 Nothing }
+    open_partial expr expr hash close     { PartialStmt (Fmt $1 $5) $2 (Just $3) $4 }
+  | open_partial expr hash close          { PartialStmt (Fmt $1 $4) $2 Nothing $3 }
   | partial_block                         { $1 }
 
 partial_block :: { Stmt }:
     do_open_partial_block statements do_close_block
       {%
-          let (fmt1, exp1, ctx) = $1
+          let (fmt1, exp1, ctx, hash) = $1
               (fmt2, exp2) = $3
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (PartialBlock fmt1 fmt2 exp1 ctx (prg $2))
+              then return (PartialBlock fmt1 fmt2 exp1 ctx hash (prg $2))
               else Left (blockError "Partial block" expected actual)
       }
 
-do_open_partial_block :: { (Fmt, Expr, Maybe Expr) }:
-    open_partial_block expr bare_expr close { (Fmt $1 $4, $2, Just $3) }
-  | open_partial_block expr close           { (Fmt $1 $3, $2, Nothing) }
+do_open_partial_block :: { (Fmt, Expr, Maybe Expr, Hash) }:
+    open_partial_block expr expr hash close { (Fmt $1 $5, $2, (Just $3), $4) }
+  | open_partial_block expr hash close      { (Fmt $1 $4, $2, Nothing, $3) }
 
 -- -----------------------------------------------------------------------------
 -- Decorators

@@ -1,9 +1,11 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 module BMX.Data.Value (
     Context (..)
   , Value (..)
+  , Param (..)
   , renderValue
   , renderValueType
   , truthy
@@ -28,9 +30,13 @@ data Value
   = StringV Text
   | IntV Integer
   | BoolV Bool
-  | ContextV Context
   | NullV
   | UndefinedV
+  | ContextV Context
+  | ListV [Value]
+  deriving (Eq, Show)
+
+newtype Param = Param { renderParam :: Text }
   deriving (Eq, Show)
 
 renderValue :: Value -> Text
@@ -40,7 +46,8 @@ renderValue = \case
   BoolV b -> if b then "true" else "false"
   NullV -> "null"
   UndefinedV -> "undefined"
-  ContextV _ -> "(object)" -- FIX this is almost never what we want
+  ContextV _ -> "(object)"
+  ListV _ -> "(list)"
 
 truthy :: Value -> Bool
 truthy = \case
@@ -48,8 +55,9 @@ truthy = \case
   NullV -> False
   UndefinedV -> False
   StringV t -> not (T.null t)
-  ContextV _ -> True
   IntV i -> i /= 0
+  ContextV c -> c /= mempty
+  ListV l -> not (null l)
 
 falsey :: Value -> Bool
 falsey = not . truthy
@@ -59,6 +67,7 @@ renderValueType = \case
   StringV _ -> "string"
   IntV _ -> "number"
   BoolV _ -> "boolean"
-  ContextV _ -> "context"
   NullV -> "null"
   UndefinedV -> "undefined"
+  ContextV _ -> "context"
+  ListV _ -> "list"

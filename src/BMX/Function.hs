@@ -10,9 +10,10 @@ module BMX.Function (
   , string
   , number
   , boolean
-  , context
   , nullv
   , undef
+  , context
+  , list
   -- *
   , runHelper
   , runBlockHelper
@@ -60,41 +61,38 @@ undef = one "undefined" isUndef
   where isUndef UndefinedV = True
         isUndef _ = False
 
-context :: Monad m => FunctionT m Context
-context = do
-  (ContextV c) <- one "context" isContext
-  return c
+context :: Monad m => FunctionT m Value
+context = one "context" isContext
   where isContext (ContextV _) = True
         isContext _ = False
+
+list :: Monad m => FunctionT m Value
+list = one "list" isList
+  where isList (ListV _) = True
+        isList _ = False
 
 -- -----------------------------------------------------------------------------
 -- Running / using a helper, partial or decorator
 
 runHelper :: Monad m => [Value] -> Helper m -> BMX m Value
 runHelper _ (BlockHelper _) = err (TypeError "helper" "block helper")
-runHelper v (Helper h) = runFunctionT v h >>= either helpE return
+runHelper v (Helper h) = runFunctionT v [] h >>= either helpE return
 
-runBlockHelper :: Monad m => [Value] -> Template -> Template -> Helper m -> BMX m Page
-runBlockHelper _ _ _ (Helper _) = err (TypeError "block helper" "helper")
-runBlockHelper v ifp elsep (BlockHelper h) = do
-  fun <- runFunctionT v (h ifp elsep)
+runBlockHelper :: Monad m => [Value] -> BlockParams -> Template -> Template -> Helper m -> BMX m Page
+runBlockHelper _ _ _ _ (Helper _) = err (TypeError "block helper" "helper")
+runBlockHelper v bparams ifp elsep (BlockHelper h) = do
+  fun <- runFunctionT v (toParams bparams) (h ifp elsep)
   either helpE return fun
 
--- FIX handle partial blocks
--- Partial blocks have two use cases:
---     1. Rendered up front and added to the context as @partial-block
---     2. Failover for when the named partial isn't found
---
---     #2 can be handled above this level in evalPartialBlock
---     #1 can be handled above this level with a local context change
+-- Assumes @partial-block has been registered by caller.
 runPartial :: (Applicative m, Monad m) => [Value] -> Partial m -> BMX m Page
 runPartial v (Partial p) = partial
   where
-    partial = runFunctionT v partialArg >>= either partE return
+    partial = runFunctionT v [] partialArg >>= either partE return
     partialArg = try customCtx <|> noCtx
     --
     customCtx = do
-      c <- context
+      (ContextV c) <- context
       liftBMX (withContext c p)
     --
     noCtx = liftBMX p
@@ -102,16 +100,13 @@ runPartial v (Partial p) = partial
 -- | Run a Decorator, then a continuation in the same environment
 withDecorator :: Monad m => [Value] -> Decorator m -> BMX m Page -> BMX m Page
 withDecorator _ (BlockDecorator _) _ = err (TypeError "decorator" "block decorator")
-withDecorator v (Decorator d) k = runFunctionT v (d k) >>= either decoE return
+withDecorator v (Decorator d) k = runFunctionT v [] (d k) >>= either decoE return
 
 -- | Run a block decorator, then a continuation
 withBlockDecorator :: Monad m => [Value] -> Template -> Decorator m -> BMX m Page -> BMX m Page
 withBlockDecorator _ _ (Decorator _) _ = err (TypeError "block decorator" "decorator")
-withBlockDecorator v b (BlockDecorator d) k = runFunctionT v (d b k) >>= either decoE return
+withBlockDecorator v b (BlockDecorator d) k = runFunctionT v [] (d b k) >>= either decoE return
 
--- Take a list of Decorators and their values, along with a Program,
--- and thread the continuation along
--- foldDecorators :: Monad m => ??
 
 -- -----------------------------------------------------------------------------
 -- Util
@@ -124,3 +119,6 @@ partE = err . PartialError
 
 decoE :: Monad m => FunctionError -> BMX m a
 decoE = err . DecoratorError
+
+toParams :: BlockParams -> [Param]
+toParams (BlockParams ps) = fmap (Param . renderLiteral) ps

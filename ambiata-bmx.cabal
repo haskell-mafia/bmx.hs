@@ -38,15 +38,18 @@ library
   exposed-modules:
                        Paths_ambiata_bmx
                        BMX
+                       BMX.Builtin
+                       BMX.Builtin.Decorators
+                       BMX.Builtin.Helpers
                        BMX.Data
                        BMX.Eval
                        BMX.Function
-                       BMX.Helpers
                        BMX.Lexer
                        BMX.Parser
 
   other-modules:
                        BMX.Data.AST
+                       BMX.Data.Data
                        BMX.Data.Eval
                        BMX.Data.Format
                        BMX.Data.Function
@@ -63,6 +66,7 @@ executable bmx
                      , ambiata-p
                      , ambiata-bmx
                      , text
+                     , containers
 
   main-is:             main/bmx.hs
 

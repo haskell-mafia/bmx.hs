@@ -8,8 +8,7 @@ import           Disorder.Core
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
-import           BMX (templateFromText)
-import           BMX.Data (renderTemplate)
+import           BMX (templateFromText, templateToText)
 
 import           Test.BMX.Arbitrary ()
 
@@ -17,35 +16,45 @@ import           P
 
 --------------------------------------------------------------------------------
 
-prop_parse_roundtrip p = tripping renderTemplate templateFromText p
+prop_parse_roundtrip p = tripping templateToText templateFromText p
 
 --------------------------------------------------------------------------------
--- dopey regression tests
+-- dopey regression tests - the stuff that's easy to break
 
+-- FIX freeze these to their current AST values
 doesParse text = isRight (templateFromText text)
 
-prop_basic_mustache = once . doesParse $
+prop_parse_basic_mustache = once . doesParse $
   "{{mustache expression}}"
 
-prop_basic_partial = once . doesParse $
+prop_parse_basic_partial = once . doesParse $
+  "{{> partial }}"
+
+prop_parse_basic_partial_ctx = once . doesParse $
   "{{>partial expression}}"
 
-prop_basic_partial_block = once . doesParse $
-  "{{#> partial block expression}} aowiefj {{/partial}}"
+prop_parse_basic_dynamic_partial = once . doesParse $
+  "{{> (lookup . \"component\") }}"
 
-prop_basic_block = once . doesParse $
+prop_parse_basic_dynamic_partial_ctx = once . doesParse $
+  "{{> (lookup . 'component') somecontext }}"
+
+prop_parse_basic_partial_block = once . doesParse $
+  "{{#> partial block }} aowiefj {{/partial}}"
+
+prop_parse_basic_block = once . doesParse $
   "{{# block expression}} abcdefghi {{/block}}"
 
-prop_basic_block_inverse_1 = once . doesParse $
+prop_parse_basic_block_inverse_1 = once . doesParse $
   "{{# block expression }} abcdefghi {{^}} jklmnop {{/block}}"
 
-prop_basic_block_inverse_2 = once . doesParse $
+prop_parse_basic_block_inverse_2 = once . doesParse $
   "{{# block expression }} aoiwejfoai {{else}} aowiefj {{/block}}"
 
-prop_basic_inverse_block = once . doesParse $
+prop_parse_basic_inverse_block = once . doesParse $
   "{{^inverse block}} here we go {{^}} with inverse {{/inverse}}"
 
-prop_basic_hash_pair = once . and $ fmap doesParse [
+prop_parse_basic_hash_pair = once . and $ fmap doesParse [
     "{{ mustache with hash = pair }}"
   , "{{ mustache with hash = pair fun = times }}"
   ]

@@ -46,8 +46,8 @@ instance Arbitrary Stmt where
   arbitrary = oneof [
       Mustache <$> arbitrary <*> bareExpr
     , MustacheUnescaped <$> arbitrary <*> bareExpr
-    , PartialStmt <$> arbitrary <*> bareExpr <*> expmay
-    , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> expmay <*> body
+    , PartialStmt <$> arbitrary <*> arbitrary <*> expmay <*> arbitrary
+    , PartialBlock <$> arbitrary <*> arbitrary <*> arbitrary <*> expmay <*> arbitrary <*> body
     , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverseChain
     , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverse
     , RawBlock <$> bareExpr <*> rawContent
@@ -186,7 +186,7 @@ validSegId t = and [noEscape t, noNull t, T.takeEnd 1 t /= "\\"]
 rawContent :: Gen Text
 rawContent = do
   ts <- sized $ \s -> resize (min s 5) arbitrary
-  pure (renderTemplate ts)
+  pure (templateToText ts)
 
 -- | Allow only escaped Mustache expressions
 noMustaches :: Text -> Bool

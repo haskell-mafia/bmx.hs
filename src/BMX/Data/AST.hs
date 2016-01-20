@@ -2,7 +2,23 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module BMX.Data.AST where
+{-# OPTIONS_HADDOCK not-home #-}
+module BMX.Data.AST (
+    Template (..)
+  , Stmt (..)
+  , Expr (..)
+  , Literal (..)
+  , BlockParams (..)
+  , Path (..)
+  , DataPath (..)
+  , Hash (..)
+  , HashPair (..)
+  , Fmt (..)
+  , templateToText
+  , renderLiteral
+  , renderPath
+  , renderDataPath
+  ) where
 
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -17,8 +33,8 @@ newtype Template = Template [Stmt]
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr
-  | PartialStmt Fmt Expr (Maybe Expr)
-  | PartialBlock Fmt Fmt Expr (Maybe Expr) Template
+  | PartialStmt Fmt Expr (Maybe Expr) Hash
+  | PartialBlock Fmt Fmt Expr (Maybe Expr) Hash Template
   | Block Fmt Fmt Expr BlockParams Template Template
   | Inverse Fmt Template
   | InverseChain Fmt Expr BlockParams Template Template
@@ -73,8 +89,8 @@ data HashPair = HashPair Text Expr
 data Fmt = Fmt Format Format
   deriving (Show, Eq)
 
-emptyHash :: Hash
-emptyHash = Hash []
+templateToText :: Template -> Text
+templateToText = renderTemplate
 
 renderPath :: Path -> Text
 renderPath = \case
@@ -93,6 +109,8 @@ renderLiteral = \case
   BooleanL b -> if b then "true" else "false"
   UndefinedL -> "undefined"
   NullL      -> "null"
+
+-- -----------------------------------------------------------------------------
 
 renderBlockParams :: BlockParams -> Text
 renderBlockParams (BlockParams ps) = " as |" <> T.intercalate " " (fmap renderLiteral ps) <> "|"
@@ -118,13 +136,15 @@ renderStmt = \case
     openFormat l <> renderBareExpr e <> closeFormat r
   MustacheUnescaped (Fmt l r) e ->
     openFormat l <> "{" <> renderBareExpr e <> "}" <> closeFormat r
-  PartialStmt (Fmt l r) e ctx ->
+  PartialStmt (Fmt l r) e ctx hash ->
     openFormat l <> ">" <> renderExpr e
-       <> " " <> maybe T.empty renderBareExpr ctx
+       <> " " <> maybe T.empty renderExpr ctx
+       <> " " <> renderHash hash
        <> closeFormat r
-  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ctx body ->
+  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ctx hash body ->
     openFormat l1 <> "#>" <> renderExpr e
-      <> " " <> maybe T.empty renderBareExpr ctx
+      <> " " <> maybe T.empty renderExpr ctx
+      <> " " <> renderHash hash
       <> closeFormat r1
       <> renderTemplate body
       <> closeBlock l2 r2 e

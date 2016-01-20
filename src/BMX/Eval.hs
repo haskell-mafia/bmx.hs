@@ -36,11 +36,11 @@ evalStmt = \case
   -- Treat this as a block too, although it lacks the lower formatting
   InverseChain (Fmt l r) e bp b i -> evalBlock l r Verbatim Verbatim e bp b i
   -- Special handler that resolves and inlines the partial
-  PartialStmt (Fmt l r) e ee ->
-    evalPartial l Verbatim r Verbatim e ee (err . NoSuchPartial . renderLiteral)
+  PartialStmt (Fmt l r) e ee hash ->
+    evalPartial l Verbatim r Verbatim e ee hash (err . NoSuchPartial . renderLiteral)
   -- Special handler that registers @partial-block, and fails over if partial not found
-  PartialBlock _ _ _ _ _ -> err (SomeError "Partial blockks unimplemented")
-  -- PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee b -> evalPartialBlock l1 r1 l2 r2 e ee b
+  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee hash b -> evalPartialBlock l1 r1 l2 r2 e ee hash b
+  -- Special handler that treats it as a regular block with a single ContentStmt
   RawBlock e body -> evalRawBlock e body
   -- Decorators are handled in a first pass, so here they are mere formatting
   DecoratorStmt (Fmt l r) _ -> return (page l r T.empty)
@@ -48,83 +48,106 @@ evalStmt = \case
 
 evalExpr :: Monad m => Expr -> BMX m Value
 evalExpr = \case
-  (SExp h p hash) -> handleLit h p hash
-  (Lit l) -> handleLit l [] mempty
+  (SExp h p hash) -> evalExpr' True h p hash
+  (Lit l) -> evalExpr' True l [] mempty
+
+evalExpr' :: Monad m => Bool -> Literal -> [Expr] -> Hash -> BMX m Value
+evalExpr' b l p hash = do
+  help <- helperFromLit l
+  vals <- mapM evalExpr p
+  maybe
+    (if null p then valueLookupCoerce b l else err (TypeError "helper" "value"))
+    (withHash hash . runHelper vals)
+    help
   where
-    handleLit :: Monad m => Literal -> [Expr] -> Hash -> BMX m Value
-    handleLit l p hash = do
-      help <- helperFromLit l
-      vals <- mapM evalExpr p
-      maybe
-        (if null p then valueLookup l else err (TypeError "helper" "value"))
-        (withHash hash . runHelper vals)
-        help
-    --
-    valueLookup l = do
-      mv <- valueFromLit l
-      maybe (warn (NoSuchValue (renderLiteral l)) >> return (StringV T.empty))
-            return
-            mv
+    valueLookupCoerce True ll = do
+      mv <- valueFromLit ll
+      -- We coerce undefined values to UndefinedV. We only tolerate this because
+      -- the expression is an argument to a helper, not something we're rendering.
+      -- e.g. the "if" helper relies on this behaviour.
+      maybe (return UndefinedV) return mv
+    valueLookupCoerce False ll = do
+      mv <- valueFromLit ll
+      -- Refuse to coerce - fail if not found
+      maybe (err (ENoSuchValue (renderLiteral ll))) return mv
 
 evalMustache :: Monad m => Format -> Format -> Expr -> BMX m Page
-evalMustache l r e = do
-  ret <- evalExpr e
-  return (page l r (renderValue ret))
+evalMustache l r = \case
+  Lit _ -> err (ParserError "Lit found in Mustache")
+  SExp lit ps hash -> do
+    val <- evalExpr' False lit ps hash -- Do not allow coercion for lit
+    render val
+  where
+    render p = liftM (page l r) $ case p of
+      ContextV _ -> err (Unrenderable "context")
+      ListV _ -> err (Unrenderable "list")
+      UndefinedV -> err (Unrenderable "undefined")
+      NullV -> err (Unrenderable "null")
+      s@(StringV _) -> return (renderValue s)
+      i@(IntV _) -> return (renderValue i)
+      b@(BoolV _) -> return (renderValue b)
 
 evalBlock :: Monad m => Format -> Format -> Format -> Format
           -> Expr -> BlockParams -> Template -> Template
           -> BMX m Page
-evalBlock l1 r1 l2 r2 e _bp block inverse = case e of
+evalBlock l1 r1 l2 r2 e bp block inverse = case e of
   Lit l -> do
     help <- helperFromLit l
-    -- FIX blockparams?
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral l)))
-              (runBlockHelper [] block inverse)
+              (runBlockHelper [] bp block inverse)
               help
-    -- Inner and outer formatting are both used
+    -- Inner and outer formatting are both used. a block can strip its rendered contents
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
   SExp h p hash -> do
     help <- helperFromLit h
     args <- mapM evalExpr p
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral h)))
-              (withHash hash . runBlockHelper args block inverse)
+              (withHash hash . runBlockHelper args bp block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
 
 evalPartial :: (Applicative m, Monad m) => Format -> Format -> Format -> Format
-            -> Expr -> Maybe Expr -> (Literal -> BMX m Page) -> BMX m Page
-evalPartial _l1 _r1 _l2 _r2 (SExp _e _p _hash) _extra _errf =
-  err (SomeError "dynamic partials not implemented")
-evalPartial l1 r1 l2 r2 (Lit p) extra errf = case extra of
-  Just (Lit _) -> err (SomeError "parser failure (partial): Lit where SExpr should appear")
-  Nothing -> do
-    -- No hash or extra context
-    part <- partialFromLit p
-    body <- maybe (err (NoSuchPartial (renderLiteral p))) (runPartial []) part
-    return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
-  Just (SExp ctx ps hash) -> do
-    -- Extra context and / or hash vals. ps should be empty, enforced by runPartial
-    part <- partialFromLit p
-    vals <- mapM evalExpr ps
-    ctxv <- valueFromLit ctx
-    ctx' <- case ctxv of
-              Just (ContextV c) -> return c
-              _ -> err (TypeError "context" "subexpression or value")
-    body <- maybe (errf p)
-                  (withContext ctx' . withHash hash . runPartial vals)
-                  part
-    return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
+            -> Expr -> Maybe Expr -> Hash -> (Literal -> BMX m Page) -> BMX m Page
+evalPartial l1 r1 l2 r2 pp extra hash errf = case pp of
+  -- Dynamic partial. Exp should eval to a string, then use that for a Partial lookup
+  e@(SExp _ _ _) -> do
+    val <- evalExpr e
+    case val of
+      StringV part -> if not (T.null part)
+        then lookupPartial (PathID part Nothing) >>= maybe (errf (StringL part)) doPartial
+        else errf (StringL part)
+      v -> err (TypeError "string" (renderValueType v))
+  -- Regular partial - look it right up alright
+  Lit p -> partialFromLit p >>= maybe (errf p) doPartial
+  where
+    pFormat b = page l1 r1 T.empty <> b <> page l2 r2 T.empty
+    --
+    doPartial p = case extra of
+      Nothing -> mkPartial [] p -- No extra context
+      Just e -> do
+        parm <- evalExpr e
+        mkPartial [parm] p
+    --
+    mkPartial vals p = liftM pFormat (withHash hash (runPartial vals p))
 
--- Need to fix Data definition first
--- evalPartialBlock l1 r1 l2 r2 e ee b = 
+evalPartialBlock :: (Applicative m, Monad m) => Format -> Format -> Format -> Format
+                 -> Expr -> Maybe Expr -> Hash -> Template -> BMX m Page
+evalPartialBlock l1 r1 l2 r2 e ee hash b =
+  -- Register b as @partial-block
+  -- Call evalPartial with custom error function (const (eval b)) - failover
+  withData "partial-block" blockData (evalPartial l1 r1 l2 r2 e ee hash failOver)
+  where
+    blockData = DPartial (Partial (eval b))
+    failOver = const (eval b)
 
--- evalDecorator :: Monad m => Format -> Format -> Decorator -> BMX m Page -> BMX m Page
-
+-- | Evaluate a raw block.
 evalRawBlock :: Monad m => Expr -> Text -> BMX m Page
 evalRawBlock e t = evalBlock
+  -- FIX Unsure if this approach is ok. Weird for BlockHelper to attack its block.
+  -- Might be better to pack it as a StringV for a regular Helper, and expect a string.
   Verbatim Verbatim Verbatim Verbatim
   e mempty (Template [ContentStmt t]) (Template [])
 
@@ -161,7 +184,7 @@ foldHashPairs hps k = foldl' foldFun k hps
       withVariable key val' k'
     foldFun k' (HashPair key (Lit l)) = do
       val' <- valueFromLit l
-      maybe (err (ENoSuchValue (renderLiteral l)))
+      maybe (err (ENoSuchValue (renderLiteral l))) -- FIX a warning is probably fine?
             (\v -> withVariable key v k')
             val'
 
@@ -178,8 +201,11 @@ helperFromLit = \case
 partialFromLit :: Monad m => Literal -> BMX m (Maybe (Partial m))
 partialFromLit = \case
   PathL p -> lookupPartial p
-  -- FIX Data variables not implemented properly - Partial is not a Value
-  DataL _p -> err (SomeError "data partials not implemented") -- dlookup p
+  DataL p -> do
+    d <- lookupData p
+    return $ case d of
+      Just (DPartial part) -> Just part
+      _ -> Nothing
   _ -> err (TypeError "partial" "literal")
 
 decoratorFromLit :: Monad m => Literal -> BMX m (Maybe (Decorator m))
@@ -195,8 +221,14 @@ valueFromLit = \case
   NumberL i -> val (IntV i)
   StringL s -> val (StringV s)
   PathL p -> lookupValue p
-  DataL p -> lookupData p
-  where val = return . Just
+  DataL p -> do
+    md <- lookupData p
+    return (md >>= dataVal)
+  where
+    val = return . Just
+    dataVal = \case
+      (DValue v) -> Just v
+      _ -> Nothing
 
 -- -----------------------------------------------------------------------------
 -- Util
