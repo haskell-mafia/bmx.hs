@@ -9,6 +9,7 @@ import           Data.Data
 import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (zipWith)
+import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
@@ -17,40 +18,73 @@ import           Test.QuickCheck.Instances ()
 import           BMX.Data
 import           BMX.Lexer
 
+import           Test.BMX.Orphans ()
+
 import           P
+
+--------------------------------------------------------------------------------
+-- Contexts and values
+
+instance Arbitrary Context where
+  arbitrary = Context . M.fromList <$> listOf ctxPairs
+    where ctxPairs = (,) <$> simpleId <*> arbitrary
+  shrink c = genericShrink c
+
+instance Arbitrary Value where
+  arbitrary = oneof [
+      pure NullV
+    , pure UndefinedV
+    , IntV <$> arbitrary
+    , StringV <$> arbitrary
+    , BoolV <$> arbitrary
+    , ContextV <$> arbitrary
+    , ListV <$> listOf arbitrary
+    ]
+  shrink v = genericShrink v
+
+--------------------------------------------------------------------------------
+-- Page
+
+instance Arbitrary Page where
+  arbitrary = elements [Formatter, \_ _ t _ _ -> Formattee t]
+    <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary <*> arbitrary
+  shrink (Formattee t) = Formattee <$> shrink t
+  shrink (Formatter lf rf t1 t2 t3) = bodies <> leftsh <> rightsh
+    where bodies = (\t -> Formatter lf rf t t2 t3) <$> shrink t1
+          leftsh = (\t -> Formatter lf rf t1 t t3) <$> shrink t2
+          rightsh = (\t -> Formatter lf rf t1 t2 t) <$> shrink t3
 
 --------------------------------------------------------------------------------
 -- AST / parser generators
 
-instance Arbitrary Program where
+instance Arbitrary Template where
   -- Adjacent ContentStmt clauses need to get concatenated.
-  -- Do this recursively across all Program fragments in the tree via syb
-  arbitrary = everywhere (mkT merge) . Program <$> smallList arbitrary
-  shrink (Program sts) = everywhere (mkT merge) . Program <$> shrinkList shrink sts
+  -- Do this recursively across all template fragments in the tree via syb
+  arbitrary = everywhere (mkT merge) . Template <$> smallList arbitrary
+  shrink (Template sts) = everywhere (mkT merge) . Template <$> shrinkList shrink sts
 
 instance Arbitrary Stmt where
   arbitrary = oneof [
       Mustache <$> arbitrary <*> bareExpr
     , MustacheUnescaped <$> arbitrary <*> bareExpr
-    , Partial <$> arbitrary <*> bareExpr <*> expmay
-    , PartialBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> expmay <*> body
-    , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverseChain
-    , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> bparams <*> body <*> inverse
+    , PartialStmt <$> arbitrary <*> arbitrary <*> expmay <*> arbitrary
+    , PartialBlock <$> arbitrary <*> arbitrary <*> arbitrary <*> expmay <*> arbitrary <*> body
+    , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverseChain
+    , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverse
     , RawBlock <$> bareExpr <*> rawContent
     , ContentStmt <$> arbitrary `suchThat` validContent
     , CommentStmt <$> arbitrary <*> arbitrary `suchThat` validComment
-    , Decorator <$> arbitrary <*> bareExpr
+    , DecoratorStmt <$> arbitrary <*> bareExpr
     , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
     ]
     where
-      bparams = oneof [pure Nothing, arbitrary]
-      body = Program <$> smaller (smallList arbitrary)
+      body = Template <$> smaller (smallList arbitrary)
       inverseChain = smaller $ sized goInverse
-      goInverse 0 = pure Nothing
-      goInverse n = oneof [pure Nothing, inverse, inverseChain' n]
-      inverseChain' n = fmap Just $
-        InverseChain <$> arbitrary <*> bareExpr <*> bparams <*> body <*> goInverse (n `div` 2)
-      inverse = fmap Just $ Inverse <$> arbitrary <*> body
+      goInverse 0 = inverse
+      goInverse n = oneof [inverse, inverseChain' n]
+      inverseChain' n = fmap (Template . (:[])) $
+        InverseChain <$> arbitrary <*> bareExpr <*> arbitrary <*> body <*> goInverse (n `div` 2)
+      inverse = fmap (Template . (:[])) $ Inverse <$> arbitrary <*> body
       expmay = elements [Just, const Nothing] <*> bareExpr
   shrink = \case
     ContentStmt t -> ContentStmt <$> filter validContent (shrink t)
@@ -68,6 +102,7 @@ instance Arbitrary Expr where
 instance Arbitrary Literal where
   arbitrary = oneof [
       PathL <$> arbitrary
+    , DataL <$> arbitrary
     , StringL <$> arbitrary `suchThat` validString
     , NumberL <$> arbitrary
     , BooleanL <$> arbitrary
@@ -82,36 +117,36 @@ instance Arbitrary BlockParams where
   arbitrary = BlockParams <$> listOf1 name
     where
       -- A 'simple' name, i.e. an ID without path components
-      name = PathL . Path . (:[]) . PathID <$> arbitrary `suchThat` validId
+      name = fmap PathL . PathID <$> arbitrary `suchThat` validId <*> pure Nothing
   shrink (BlockParams ps) = BlockParams <$> filter (not . null) (shrinkList shrink ps)
 
-instance Arbitrary Path where
-  arbitrary = do
-    p <- elements [Path, DataPath]
-    i <- PathID <$> arbitrary `suchThat` validId
-    cs <- listOf pair
-    pure $ p (i : mconcat cs)
-    where
-      ident = PathID <$> arbitrary `suchThat` validId
-      sep = PathSep <$> elements ['.', '/']
-      pair = do
-        s <- sep
-        i <- ident
-        pure [s, i]
-  shrink = \case
-    Path ps -> Path <$> filter (not . null) (idsep ps)
-    DataPath ps -> DataPath <$> filter (not . null) (idsep ps)
-    where idsep = subsequenceCon [PathSep '_', PathID T.empty]
+instance Arbitrary DataPath where
+  arbitrary = DataPath <$> arbitrary
+  shrink (DataPath p) = DataPath <$> shrink p
 
-instance Arbitrary PathComponent where
+instance Arbitrary Path where
   arbitrary = oneof [
-      PathID <$> arbitrary `suchThat` validId
-    , PathSep <$> elements ['.', '/']
-    , PathSegment <$> arbitrary `suchThat` validComment
-    ]
+        oneof [dot, dotdot] <*> sized slashrest
+      , oneof [reg, seg] <*> sized rest
+      ]
+    where
+      paths 0 = oneof [reg, seg] <*> pure Nothing
+      paths n = oneof [reg, seg] <*> rest (n - 1)
+      rest 0 = pure Nothing
+      rest n = fmap Just . (,) <$> elements ['.', '/'] <*> paths n
+      slashrest n = fmap Just . (,) <$> pure '/' <*> paths n
+      reg = PathID <$> arbitrary `suchThat` validId
+      seg = PathSeg <$> arbitrary `suchThat` validSegId
+      dot = pure (PathID ".")
+      dotdot = pure (PathID "..")
   shrink = \case
-    PathID t -> PathID <$> filter validId (shrink t)
-    _ -> []
+    PathID _ Nothing -> []
+    PathSeg _ Nothing -> []
+    PathID t ts -> (PathID <$> filter validId (shrink t) <*> pure ts) <> (PathID t <$> trim ts)
+    PathSeg t ts -> (PathSeg <$> filter validSegId (shrink t) <*> pure ts) <> (PathSeg t <$> trim ts)
+    where
+      trim Nothing = [Nothing]
+      trim (Just (s, p)) = Just . (,) s <$> shrink p
 
 instance Arbitrary Hash where
   arbitrary = Hash <$> smallList arbitrary
@@ -127,6 +162,9 @@ instance Arbitrary Fmt where
 instance Arbitrary Format where
   arbitrary = elements [Strip, Verbatim]
 
+simpleId :: Gen Text
+simpleId = arbitrary `suchThat` validId
+
 bareExpr :: Gen Expr
 bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
 
@@ -139,8 +177,8 @@ smallList g = sized go
 smaller :: Gen a -> Gen a
 smaller g = sized $ \s -> resize (s `div` 2) g
 
-merge :: Program -> Program
-merge (Program ps) = Program (go ps)
+merge :: Template -> Template
+merge (Template ps) = Template (go ps)
   where
     go (ContentStmt t1 : ContentStmt t2 : xs) = go (ContentStmt (t1 <> t2) : xs)
     go (x : xs) = x : go xs
@@ -172,7 +210,7 @@ validSegId t = and [noEscape t, noNull t, T.takeEnd 1 t /= "\\"]
 rawContent :: Gen Text
 rawContent = do
   ts <- sized $ \s -> resize (min s 5) arbitrary
-  pure (renderProgram ts)
+  pure (templateToText ts)
 
 -- | Allow only escaped Mustache expressions
 noMustaches :: Text -> Bool

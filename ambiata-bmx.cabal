@@ -16,11 +16,16 @@ library
                      , transformers                    >= 0.3        && < 0.5
                      , either                          >= 4.3        && < 4.5
                      , ambiata-p
+                     , ambiata-x-eithert
                      , bifunctors
                      , text                            == 1.2.*
                      , safe                            == 0.3.*
                      , array                           == 0.5.*
                      , parsec                          == 3.1.*
+                     , mtl                             == 2.2.*
+                     , containers                      == 0.5.*
+                     , blaze-html                      == 0.8.*
+                     , dlist                           == 0.7.*
 
   build-tools:         happy
 
@@ -33,13 +38,25 @@ library
   exposed-modules:
                        Paths_ambiata_bmx
                        BMX
+                       BMX.Builtin
+                       BMX.Builtin.Decorators
+                       BMX.Builtin.Helpers
                        BMX.Data
+                       BMX.Eval
+                       BMX.Function
                        BMX.Lexer
                        BMX.Parser
 
   other-modules:
-                       BMX.Data.Token                       
                        BMX.Data.AST
+                       BMX.Data.Data
+                       BMX.Data.Eval
+                       BMX.Data.Format
+                       BMX.Data.Function
+                       BMX.Data.Page
+                       BMX.Data.Token                       
+                       BMX.Data.Value
+
 
 
 executable bmx
@@ -49,6 +66,7 @@ executable bmx
                      , ambiata-p
                      , ambiata-bmx
                      , text
+                     , containers
 
   main-is:             main/bmx.hs
 
@@ -65,8 +83,11 @@ test-suite test
 
   other-modules:
                        Test.BMX.Arbitrary
+                     , Test.BMX.Eval
                      , Test.BMX.Lexer
+                     , Test.BMX.Orphans
                      , Test.BMX.Parser
+                     , Test.BMX.Page
 
   build-depends:
                        base                            >= 3          && < 5
@@ -79,3 +100,6 @@ test-suite test
                      , text
                      , attoparsec
                      , syb                             == 0.6.*
+                     , containers
+                     , blaze-html
+                     , mtl
