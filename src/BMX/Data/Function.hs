@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -8,7 +10,6 @@ module BMX.Data.Function (
   , runFunctionT
   , liftBMX
   , one
-  , try
   , param
   -- * Function arity and type errors
   , FunctionError
@@ -39,7 +40,20 @@ import           P
 -- | The FunctionT transformer adds va_arg-style argument list parsing to a monad stack.
 -- We get a nice Applicative interface and only need to define two abstract combinators.
 -- All Helpers and Decorators will be defined in terms of FunctionT.
-type FunctionT m = EitherT FunctionError (StateT FunctionState m)
+newtype FunctionT m a = FunctionT { fun :: EitherT FunctionError (StateT FunctionState m) a }
+  deriving (Functor, Applicative, Monad)
+
+instance MonadTrans FunctionT where
+  lift = FunctionT . lift . lift
+
+instance (Applicative m, Monad m) => Alternative (FunctionT m) where
+  empty = FunctionT (left EOF)
+  a <|> b = do -- try a <|> b
+    st <- FunctionT get
+    (r, st') <- (FunctionT . lift . lift) (runFunctionT' st a)
+    case r of
+      Left _ -> b
+      Right v -> FunctionT (put st' >> return v)
 
 data FunctionState = FS [Value] [Param]
 
@@ -56,42 +70,34 @@ instance Monoid FunctionError where
 -- | Run the arg parser and return the rest of the computation in the inner monad.
 runFunctionT :: Monad m => [Value] -> [Param] -> FunctionT m a -> m (Either FunctionError a)
 runFunctionT s p f = do
-  (a, _) <- runFunctionT' (FS s p) (do a <- f; _ <- eof; return a) -- f <* eof
+  (a, _) <- runFunctionT' (FS s p) (do a <- f; _ <- eof; return a) -- try f <* eof
   return a
 
 runFunctionT' :: Monad m => FunctionState -> FunctionT m a -> m (Either FunctionError a, FunctionState)
-runFunctionT' s = (flip runStateT) s . runEitherT
+runFunctionT' s = (flip runStateT) s . runEitherT . fun
 
--- | Lift a BMX action into FunctionT.
+-- | Lift a BMX action into FunctionT
 liftBMX :: (Monad m, Monad (t m), MonadTrans t) => t m a -> FunctionT (t m) a
-liftBMX = lift . lift
+liftBMX = FunctionT . lift . lift
 
 one :: Monad m => Text -> (Value -> Bool) -> FunctionT m Value
 one rule p = do
-  (FS st ps) <- get
-  case st of (x:xs) -> if p x then (put (FS xs ps)) >> return x
-                              else left (Mismatch rule (renderValueType x))
-             _      -> left EOF
+  (FS st ps) <- FunctionT get
+  case st of (x:xs) -> if p x then FunctionT $ (put (FS xs ps)) >> return x
+                              else (FunctionT . left) (Mismatch rule (renderValueType x))
+             _      -> (FunctionT . left) EOF
 
 eof :: Monad m => FunctionT m ()
 eof = do
-  (FS st _) <- get
-  if null st then return () else left (Trailing (length st))
-
-try :: Monad m => FunctionT m a -> FunctionT m a
-try p = do
-  st <- get
-  (r, st') <- (lift . lift) (runFunctionT' st p)
-  case r of
-    Left e -> left e
-    Right v -> put st' >> return v
+  (FS st _) <- FunctionT get
+  if null st then return () else (FunctionT . left) (Trailing (length st))
 
 -- | Grab one block parameter.
 param :: Monad m => FunctionT m Param
 param = do
-  (FS st ps) <- get
-  case ps of (x:xs) -> put (FS st xs) >> return x
-             _ -> left NoParams
+  (FS st ps) <- FunctionT get
+  case ps of (x:xs) -> FunctionT $ put (FS st xs) >> return x
+             _ -> (FunctionT . left) NoParams
 
 renderFunctionError :: FunctionError -> Text
 renderFunctionError = \case

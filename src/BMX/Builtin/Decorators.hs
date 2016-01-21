@@ -15,8 +15,8 @@ import           P
 
 -- | The "inline" block decorator. Turns the block argument into a partial
 -- with the name of the first argument.
-decorator_inline :: (Applicative m, Monad m) => Decorator m
-decorator_inline = BlockDecorator $ \block k -> do
+inline :: (Applicative m, Monad m) => Decorator m
+inline = BlockDecorator $ \block k -> do
   (StringV name) <- string
   liftBMX $ do
     let newPartial = Partial (eval block)
@@ -24,5 +24,5 @@ decorator_inline = BlockDecorator $ \block k -> do
 
 builtinDecorators :: (Applicative m, Monad m) => Map Text (Decorator m)
 builtinDecorators = M.fromList [
-    ("inline", decorator_inline)
+    ("inline", inline)
   ]

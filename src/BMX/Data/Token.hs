@@ -19,12 +19,12 @@ newtype Tokens = Tokens { unTokens :: [Token] }
   deriving (Show, Eq)
 
 data Token
-  -- * Raw Web Content
+  -- Raw Web Content
   = Content Text
   | RawContent Text
-  -- * Handlebars Comment
+  -- Handlebars Comment
   | Comment Text
-  -- * Handlebars expression prologue
+  -- Handlebars expression prologue
   | Open Format
   | OpenPartial Format
   | OpenPartialBlock Format
@@ -38,13 +38,13 @@ data Token
   | OpenCommentBlock Format
   | OpenDecorator Format
   | OpenDecoratorBlock Format
-  -- * Handlebars expression epilogue
+  -- Handlebars expression epilogue
   | Close Format
   | CloseCommentBlock Format
   | CloseUnescaped Format
   | CloseRawBlock
   | CloseRaw Text
-  -- * Expressions
+  -- Expressions
   | ID Text
   | SegmentID Text
   | String Text

@@ -84,18 +84,10 @@ runBlockHelper v bparams ifp elsep (BlockHelper h) = do
   fun <- runFunctionT v (toParams bparams) (h ifp elsep)
   either helpE return fun
 
+-- | Run a partial in the current environment, returning a @Page@.
 -- Assumes @partial-block has been registered by caller.
-runPartial :: (Applicative m, Monad m) => [Value] -> Partial m -> BMX m Page
-runPartial v (Partial p) = partial
-  where
-    partial = runFunctionT v [] partialArg >>= either partE return
-    partialArg = try customCtx <|> noCtx
-    --
-    customCtx = do
-      (ContextV c) <- context
-      liftBMX (withContext c p)
-    --
-    noCtx = liftBMX p
+runPartial :: (Applicative m, Monad m) => Partial m -> BMX m Page
+runPartial (Partial p) = p
 
 -- | Run a Decorator, then a continuation in the same environment
 withDecorator :: Monad m => [Value] -> Decorator m -> BMX m Page -> BMX m Page
@@ -107,15 +99,11 @@ withBlockDecorator :: Monad m => [Value] -> Template -> Decorator m -> BMX m Pag
 withBlockDecorator _ _ (Decorator _) _ = err (TypeError "block decorator" "decorator")
 withBlockDecorator v b (BlockDecorator d) k = runFunctionT v [] (d b k) >>= either decoE return
 
-
 -- -----------------------------------------------------------------------------
 -- Util
 
 helpE :: Monad m => FunctionError -> BMX m a
 helpE = err . HelperError
-
-partE :: Monad m => FunctionError -> BMX m a
-partE = err . PartialError
 
 decoE :: Monad m => FunctionError -> BMX m a
 decoE = err . DecoratorError

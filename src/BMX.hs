@@ -2,7 +2,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX (
-    module X
+    Page
+  , Template
+  , Helper
+  , Partial
+  , Decorator
+  , renderPage
   , renderTemplate
   , templateToText
   , templateFromText
@@ -13,6 +18,7 @@ import           Data.Text (Text)
 import           BMX.Builtin
 import           BMX.Data
 import           BMX.Eval (eval)
+import           BMX.Function
 import           BMX.Lexer as X (LexError (..), tokenise)
 import           BMX.Parser as X (ParseError (..), parse)
 
@@ -27,7 +33,10 @@ templateFromText = either convert parse . tokenise
 renderTemplate :: Context -> Template -> (Either EvalError Page, [EvalOutput])
 renderTemplate c t = runBMX (defaultState c) (eval t)
 
-{- Proposed public interface something like this - keep EvalState opaque
+{-
+
+Proposed public interface something like this - keep EvalState opaque
+
 renderTemplateIO :: MonadIO m => Context -> Template -> m (Either EvalError Page, [EvalWarning])
 
 renderTemplateWith :: Context -> Partials -> Helpers -> Decorators

@@ -17,7 +17,6 @@ library
                      , either                          >= 4.3        && < 4.5
                      , ambiata-p
                      , ambiata-x-eithert
-                     , bifunctors
                      , text                            == 1.2.*
                      , safe                            == 0.3.*
                      , array                           == 0.5.*
@@ -83,6 +82,8 @@ test-suite test
 
   other-modules:
                        Test.BMX.Arbitrary
+                     , Test.BMX.Eval
+                     , Test.BMX.Function
                      , Test.BMX.Lexer
                      , Test.BMX.Orphans
                      , Test.BMX.Parser
@@ -99,3 +100,6 @@ test-suite test
                      , text
                      , attoparsec
                      , syb                             == 0.6.*
+                     , containers
+                     , blaze-html
+                     , mtl

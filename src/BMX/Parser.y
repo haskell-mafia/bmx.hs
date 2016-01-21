@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module BMX.Parser where
+module BMX.Parser (ParseError(..), parse) where
 
 import           Data.Either
 import           Data.Maybe (isJust)

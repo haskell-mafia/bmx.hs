@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -40,7 +41,7 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Safe (headMay)
+import           Safe (atMay, headMay, readMay)
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
@@ -56,7 +57,11 @@ import           P
 
 -- | The main evaluation monad. Allows local changes to the state,
 -- warnings, logs, and errors.
-type BMX m = EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m))
+newtype BMX m a = BMX { bmx :: EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m)) a }
+  deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
+
+instance MonadTrans BMX where
+  lift = BMX . lift . lift . lift
 
 -- | Run a pure BMX action
 runBMX :: EvalState Identity -> BMX Identity a -> (Either EvalError a, [EvalOutput])
@@ -65,21 +70,22 @@ runBMX st = fmap D.toList
   . (`runReaderT` st)
   . (`runStateT` mempty)
   . runEitherT
+  . bmx
 
 -- | Run a BMX action in an IO monad
 runBMXIO :: MonadIO m => EvalState m -> BMX m a -> m (Either EvalError a, [EvalOutput])
 runBMXIO st b = do
-  (a, c) <- (`runReaderT` st) . (`runStateT` mempty) . runEitherT $ b
+  (a, c) <- (`runReaderT` st) . (`runStateT` mempty) . runEitherT . bmx $ b
   return (a, D.toList c)
 
 warn :: Monad m => EvalWarning -> BMX m ()
-warn e = modify' (`D.snoc` (Warning e))
+warn e = BMX $ modify' (`D.snoc` (Warning e))
 
 logs :: Monad m => Text -> BMX m ()
-logs l = modify' (`D.snoc` (LogEntry l))
+logs l = BMX $ modify' (`D.snoc` (LogEntry l))
 
 err :: Monad m => EvalError -> BMX m a
-err = left
+err = BMX . left
 
 -- -----------------------------------------------------------------------------
 -- Evaluation state
@@ -182,10 +188,16 @@ lookupValue i = ask >>= (go i . evalContext)
       (t, Nothing) -> return (resolve t ctx)
       (t, Just (_, p')) -> maybe (return Nothing) (step p') (resolve t ctx)
     --
+    goingl p l = case (vname p, vrest p) of
+      (t, Just (_, p')) -> maybe (return Nothing) (step p') (resolvel t l)
+      (t, Nothing) -> return (resolvel t l)
+    --
     resolve t (Context c) = M.lookup t c
+    resolvel t ls = maybe Nothing (atMay ls) (readMay (T.unpack t))
+    --
     step p = \case
       ContextV c -> going p c
-      ListV _l -> err (SomeError "indexing into lists unimplemented") -- goingl p l
+      ListV l -> goingl p l
       _ -> return Nothing
     --
     vname = \case
@@ -223,18 +235,22 @@ lookupDecorator p = do
 -- Evaluation errors and warnings
 
 data EvalError
-  = TypeError Text Text -- ^ A type error, with "expected" and "actual" fields.
-  | HelperError FunctionError -- ^ Incorrect arguments for a Helper.
-  | PartialError FunctionError -- ^ Incorrect arguments for a Partial.
-  | DecoratorError FunctionError -- ^ Incorrect arguments for a Decorator.
-  | InvalidPath Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
-  | NoSuchPartial Text -- ^ An invoked partial was not found, and there was no failover template.
-  | NoSuchDecorator Text -- ^ An invoked decorator was not found.
-  | NoSuchBlockHelper Text -- ^ An invoked block helper was not found.
-  | ENoSuchValue Text -- ^ A variable was not found, and it was unsafe to proceed.
-  | ParserError Text -- ^ An absurd case - indicative of an error in the parser.
-  | Unrenderable Text -- ^ Attempt to render an undefined, list or context.
-  | SomeError Text -- ^ This case should be removed before BMX ships.
+  = TypeError !Text !Text -- ^ A type error, with "expected" and "actual" fields.
+  | HelperError !FunctionError -- ^ Incorrect arguments for a Helper.
+  | PartialError !FunctionError -- ^ Incorrect arguments for a Partial.
+  | DecoratorError !FunctionError -- ^ Incorrect arguments for a Decorator.
+  | InvalidPath !Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
+  | NoSuchPartial !Text -- ^ An invoked partial was not found, and there was no failover template.
+  | NoSuchDecorator !Text -- ^ An invoked decorator was not found.
+  | NoSuchBlockHelper !Text -- ^ An invoked block helper was not found.
+  | ENoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
+  | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
+  | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
+  | SomeError !Text -- ^ This case should be removed before BMX ships.
+
+instance Monoid EvalError where
+  mempty = SomeError "empty error"
+  mappend a _ = a
 
 data EvalOutput
   = Warning EvalWarning
@@ -250,18 +266,18 @@ data EvalWarning
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
-  TypeError !e !a -> "Type error (expected " <> e <> ", actually " <> a <> ")"
-  HelperError !fe -> "Helper misuse: " <> renderFunctionError fe
-  PartialError !fe -> "Partial misuse: " <> renderFunctionError fe
-  DecoratorError !fe -> "Decorator misuse: " <> renderFunctionError fe
-  InvalidPath !t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
-  NoSuchPartial !t -> "Partial " <> t <> " is not defined"
-  NoSuchDecorator !t -> "Decorator " <> t <> " is not defined"
-  NoSuchBlockHelper !t -> "Block helper " <> t <> " is not defined"
-  ENoSuchValue !t -> "Value " <> t <> " is not defined"
-  ParserError !t -> "Parser error: " <> t
-  Unrenderable !t -> "Invalid mustache: cannot render " <> t
-  SomeError !t -> "Error: " <> t
+  TypeError e a -> "Type error (expected " <> e <> ", actually " <> a <> ")"
+  HelperError fe -> "Helper misuse: " <> renderFunctionError fe
+  PartialError fe -> "Partial misuse: " <> renderFunctionError fe
+  DecoratorError fe -> "Decorator misuse: " <> renderFunctionError fe
+  InvalidPath t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
+  NoSuchPartial t -> "Partial " <> t <> " is not defined"
+  NoSuchDecorator t -> "Decorator " <> t <> " is not defined"
+  NoSuchBlockHelper t -> "Block helper " <> t <> " is not defined"
+  ENoSuchValue t -> "Value " <> t <> " is not defined"
+  ParserError t -> "Parser error: " <> t
+  Unrenderable t -> "Invalid mustache: cannot render " <> t
+  SomeError t -> "Error: " <> t
 
 renderEvalOutput :: EvalOutput -> Text
 renderEvalOutput = \case

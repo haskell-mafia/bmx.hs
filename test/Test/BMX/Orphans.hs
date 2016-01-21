@@ -59,3 +59,15 @@ deriving instance Typeable Tokens
 deriving instance Generic Token
 deriving instance Data Token
 deriving instance Typeable Token
+
+deriving instance Generic Page
+deriving instance Data Page
+deriving instance Typeable Page
+
+deriving instance Generic Context
+deriving instance Data Context
+deriving instance Typeable Context
+
+deriving instance Generic Value
+deriving instance Data Value
+deriving instance Typeable Value

@@ -10,7 +10,7 @@ import           Test.QuickCheck.Instances ()
 
 import           BMX (templateFromText, templateToText)
 
-import           Test.BMX.Arbitrary ()
+import           Test.BMX.Arbitrary
 
 import           P
 
@@ -26,6 +26,9 @@ doesParse text = isRight (templateFromText text)
 
 prop_parse_basic_mustache = once . doesParse $
   "{{mustache expression}}"
+
+prop_parse_basic_mustache_unescaped = once . doesParse $
+  "{{{mustache expression}}}"
 
 prop_parse_basic_partial = once . doesParse $
   "{{> partial }}"
@@ -58,6 +61,9 @@ prop_parse_basic_hash_pair = once . and $ fmap doesParse [
     "{{ mustache with hash = pair }}"
   , "{{ mustache with hash = pair fun = times }}"
   ]
+
+prop_parse_basic_raw_block = forAll rawContent $ \t ->
+  doesParse ("{{{{noop}}}}" <> t <> "{{{{/noop}}}}")
 
 --------------------------------------------------------------------------------
 

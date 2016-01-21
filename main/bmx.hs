@@ -9,7 +9,7 @@ import           System.IO
 import           BMX
 import           BMX.Data
 import           BMX.Eval
-import           BMX.Function
+import           BMX.Parser
 
 import           P
 

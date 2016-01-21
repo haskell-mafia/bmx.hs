@@ -9,6 +9,7 @@ import           Data.Data
 import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (zipWith)
+import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
@@ -20,6 +21,39 @@ import           BMX.Lexer
 import           Test.BMX.Orphans ()
 
 import           P
+
+--------------------------------------------------------------------------------
+-- Contexts and values
+
+instance Arbitrary Context where
+  arbitrary = sized genContext
+  shrink c = genericShrink c
+
+instance Arbitrary Value where
+  arbitrary = sized genVal
+  shrink v = genericShrink v
+
+instance Arbitrary Param where
+  arbitrary = Param <$> simpleId
+  shrink (Param t) = Param <$> filter validId (shrink t)
+
+genContext 0 = pure (Context mempty)
+genContext n = Context . M.fromList <$> vectorOf (n `div` 2) ctxPairs
+
+ctxPairs = (,) <$> simpleId <*> genVal 8
+
+genVal 0 = oneof [
+    pure NullV
+  , pure UndefinedV
+  , IntV <$> arbitrary
+  , StringV <$> arbitrary
+  , BoolV <$> arbitrary
+  ]
+genVal n = frequency [
+    (10, genVal 0)
+  , (1, ContextV <$> genContext (n `div` 2))
+  , (1, ListV <$> smallList (genVal (n `div` 2)))
+  ]
 
 --------------------------------------------------------------------------------
 -- Page
@@ -140,6 +174,9 @@ instance Arbitrary Fmt where
 
 instance Arbitrary Format where
   arbitrary = elements [Strip, Verbatim]
+
+simpleId :: Gen Text
+simpleId = arbitrary `suchThat` validId
 
 bareExpr :: Gen Expr
 bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
