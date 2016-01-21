@@ -240,13 +240,6 @@ validContent t = and [
 validComment :: Text -> Bool
 validComment = noNull
 
--- | Inline comments can't end with }
-validInlineComment :: Text -> Bool
-validInlineComment t = and [
-    noNull t
-  , or [T.null t, T.last t /= '}']
-  ]
-
 -- | Weaker comments (inside {{! }} blocks) can't have mustaches
 validWeakComment :: Text -> Bool
 validWeakComment t = and [noNull t, noMustaches t, noMustacheClose t, T.takeEnd 1 t /= "}"]

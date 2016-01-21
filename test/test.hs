@@ -8,8 +8,8 @@ import           Test.BMX.Page as Page (tests)
 main :: IO ()
 main =
   disorderMain [
---       Lexer.tests
---     , Parser.tests
---     , Page.tests
-     Eval.tests
+       Lexer.tests
+     , Parser.tests
+     , Page.tests
+     , Eval.tests
     ]

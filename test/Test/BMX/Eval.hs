@@ -88,7 +88,7 @@ prop_eval_mustache_undefined_var_fails = forAll simpleId $ \n ->
 prop_eval_comment_elim_1 t ctx = validComment t ==>
   rendersTo ("{{!--" <> t <> "--}}") ctx === pure T.empty
 
-prop_eval_comment_elim_2 t ctx = validInlineComment t ==>
+prop_eval_comment_elim_2 t ctx = validWeakComment t ==>
   rendersTo ("{{!" <> t <> "}}") ctx === pure T.empty
 
 -- -----------------------------------------------------------------------------
