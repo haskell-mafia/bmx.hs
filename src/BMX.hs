@@ -27,7 +27,10 @@ templateFromText = either convert parse . tokenise
 renderTemplate :: Context -> Template -> (Either EvalError Page, [EvalOutput])
 renderTemplate c t = runBMX (defaultState c) (eval t)
 
-{- Proposed public interface something like this - keep EvalState opaque
+{-
+
+Proposed public interface something like this - keep EvalState opaque
+
 renderTemplateIO :: MonadIO m => Context -> Template -> m (Either EvalError Page, [EvalWarning])
 
 renderTemplateWith :: Context -> Partials -> Helpers -> Decorators

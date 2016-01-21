@@ -9,6 +9,7 @@ import           Data.Data
 import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (zipWith)
+import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
@@ -20,6 +21,26 @@ import           BMX.Lexer
 import           Test.BMX.Orphans ()
 
 import           P
+
+--------------------------------------------------------------------------------
+-- Contexts and values
+
+instance Arbitrary Context where
+  arbitrary = Context . M.fromList <$> listOf ctxPairs
+    where ctxPairs = (,) <$> simpleId <*> arbitrary
+  shrink c = genericShrink c
+
+instance Arbitrary Value where
+  arbitrary = oneof [
+      pure NullV
+    , pure UndefinedV
+    , IntV <$> arbitrary
+    , StringV <$> arbitrary
+    , BoolV <$> arbitrary
+    , ContextV <$> arbitrary
+    , ListV <$> listOf arbitrary
+    ]
+  shrink v = genericShrink v
 
 --------------------------------------------------------------------------------
 -- Page
@@ -141,6 +162,9 @@ instance Arbitrary Fmt where
 instance Arbitrary Format where
   arbitrary = elements [Strip, Verbatim]
 
+simpleId :: Gen Text
+simpleId = arbitrary `suchThat` validId
+
 bareExpr :: Gen Expr
 bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
 
@@ -215,6 +239,13 @@ validContent t = and [
 -- | Anything without NUL is a valid comment
 validComment :: Text -> Bool
 validComment = noNull
+
+-- | Inline comments can't end with }
+validInlineComment :: Text -> Bool
+validInlineComment t = and [
+    noNull t
+  , or [T.null t, T.last t /= '}']
+  ]
 
 -- | Weaker comments (inside {{! }} blocks) can't have mustaches
 validWeakComment :: Text -> Bool
