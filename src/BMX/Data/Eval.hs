@@ -65,6 +65,9 @@ newtype BMX m a = BMX { bmx :: EitherT EvalError (ReaderT (EvalState m) m) a }
 instance MonadTrans BMX where
   lift = BMX . lift . lift
 
+instance MonadIO m => MonadIO (BMX m) where
+  liftIO = BMX . liftIO
+
 -- | Run a pure BMX action
 runBMX :: EvalState Identity -> BMX Identity a -> Either EvalError a
 runBMX st = runIdentity

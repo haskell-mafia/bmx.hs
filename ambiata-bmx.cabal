@@ -36,6 +36,7 @@ library
   exposed-modules:
                        BMX
                        BMX.Builtin
+                       BMX.Builtin.Debug
                        BMX.Builtin.Decorators
                        BMX.Builtin.Helpers
                        BMX.Function
