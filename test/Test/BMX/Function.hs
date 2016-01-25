@@ -22,7 +22,7 @@ import           P
 flattenFunction :: [Value] -> [Param] -> FunctionT (BMX Identity) a -> Either Text a
 flattenFunction v p f = bimap renderEvalError id ee
   >>= either (Left . renderFunctionError) (return . id)
-  where ee = fst (runBMX mempty (runFunctionT v p f))
+  where ee = runBMX (defaultState mempty) (runFunctionT v p f)
 
 anything :: FunctionT (BMX Identity) [Value]
 anything = many value

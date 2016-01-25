@@ -31,24 +31,15 @@ module BMX.Data.Eval (
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
-  , EvalOutput (..)
-  , renderEvalOutput
-  , EvalWarning (..)
-  , renderEvalWarning
   -- * Evaluation monad
   , BMX (..)
   , runBMX
   , runBMXIO
-  , warn
   , err
-  , logs
   ) where
 
 import           Control.Monad.Identity
 import           Control.Monad.Reader
-import           Control.Monad.State.Strict
-import           Data.DList (DList)
-import qualified Data.DList as D
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
@@ -67,34 +58,23 @@ import           P
 -- -----------------------------------------------------------------------------
 -- BMX monad
 
--- | The main evaluation monad. Allows local changes to the state,
--- warnings, logs, and errors.
-newtype BMX m a = BMX { bmx :: EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m)) a }
-  deriving (Functor, Applicative, Alternative, Monad)
+-- | The main evaluation monad. Allows local changes to the state and fatal errors.
+newtype BMX m a = BMX { bmx :: EitherT EvalError (ReaderT (EvalState m) m) a }
+  deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
 
 instance MonadTrans BMX where
-  lift = BMX . lift . lift . lift
+  lift = BMX . lift . lift
 
 -- | Run a pure BMX action
-runBMX :: EvalState Identity -> BMX Identity a -> (Either EvalError a, [EvalOutput])
-runBMX st = fmap D.toList
-  . runIdentity
+runBMX :: EvalState Identity -> BMX Identity a -> Either EvalError a
+runBMX st = runIdentity
   . (`runReaderT` st)
-  . (`runStateT` mempty)
   . runEitherT
   . bmx
 
 -- | Run a BMX action in an IO monad
-runBMXIO :: MonadIO m => EvalState m -> BMX m a -> m (Either EvalError a, [EvalOutput])
-runBMXIO st b = do
-  (a, c) <- (`runReaderT` st) . (`runStateT` mempty) . runEitherT . bmx $ b
-  return (a, D.toList c)
-
-warn :: Monad m => EvalWarning -> BMX m ()
-warn e = BMX $ modify' (`D.snoc` (Warning e))
-
-logs :: Monad m => Text -> BMX m ()
-logs l = BMX $ modify' (`D.snoc` (LogEntry l))
+runBMXIO :: MonadIO m => EvalState m -> BMX m a -> m (Either EvalError a)
+runBMXIO st = (`runReaderT` st) . runEitherT . bmx
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left
@@ -259,11 +239,11 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> Value -- ^ The value the binding should point to
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
-withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx k))
+withVariable key val k = noShadowing >> BMX (local (modifyContext putVar) (bmx k))
   where
-    shadowWarning = do
+    noShadowing = do
       mv <- lookupValue (PathID key Nothing)
-      maybe (return ()) (const $ warn (ShadowValue key)) mv
+      maybe (return ()) (const $ err (ShadowValue key)) mv
     --
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
@@ -276,11 +256,11 @@ withData :: Monad m => Text -- ^ The name to be bound. Note that the @\@@ is imp
          -> DataVar m -- ^ The 'DataVar' the binding should point to
          -> BMX m a -- ^ The action to run with modified environment
          -> BMX m a
-withData key val k = shadowWarning >> BMX (local addData (bmx k))
+withData key val k = noShadowing >> BMX (local addData (bmx k))
   where
-    shadowWarning = do
+    noShadowing = do
       md <- lookupData (DataPath (PathID key Nothing))
-      maybe (return ()) (const $ warn (ShadowData key)) md
+      maybe (return ()) (const $ err (ShadowData key)) md
     --
     addData es = es { evalData = M.insert key val (evalData es) }
 
@@ -292,11 +272,11 @@ withPartial :: Monad m => Text -- ^ The name to be bound
             -> Partial m -- ^ The 'Partial' the binding should point to
             -> BMX m a -- ^ The action to run with modified environment
             -> BMX m a
-withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
+withPartial name p k = noShadowing >> BMX (local addPartial (bmx k))
   where
-    shadowWarning = do
+    noShadowing = do
       mv <- lookupPartial (PathID name Nothing)
-      maybe (return ()) (const $ warn (ShadowPartial name)) mv
+      maybe (return ()) (const $ err (ShadowPartial name)) mv
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
@@ -377,28 +357,19 @@ data EvalError
   | InvalidPath !Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
   | NoSuchPartial !Text -- ^ An invoked partial was not found, and there was no failover template.
   | NoSuchDecorator !Text -- ^ An invoked decorator was not found.
-  | NoSuchBlockHelper !Text -- ^ An invoked block helper was not found.
-  | ENoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
+  | NoSuchHelper !Text -- ^ An invoked block helper was not found.
+  | NoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
   | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
   | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
-  | Shadowing !Text -- ^ Attempt to redefine a variable
-  | SomeError !Text -- ^ This case should be removed before BMX ships.
+  | Shadowing !Text -- ^ Attempt to redefine a variable in the initial environment
+  | ShadowValue !Text -- ^ Attempt to redefine a variable in the current context
+  | ShadowPartial !Text -- ^ Attempt to redefine a partial
+  | ShadowData !Text -- ^ Attempt to redefine a data variable
+  | SomeError !Text -- ^ FIX This case should be removed eventually
 
 instance Monoid EvalError where
   mempty = SomeError "empty error"
   mappend a _ = a
-
-data EvalOutput
-  = Warning EvalWarning
-  | LogEntry Text
-
-data EvalWarning
-  = WarnDNE Text
-  | NoSuchHelper Text
-  | NoSuchValue Text
-  | ShadowValue Text
-  | ShadowPartial Text
-  | ShadowData Text
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -409,23 +380,12 @@ renderEvalError = \case
   InvalidPath t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
   NoSuchPartial t -> "Partial " <> t <> " is not defined"
   NoSuchDecorator t -> "Decorator " <> t <> " is not defined"
-  NoSuchBlockHelper t -> "Block helper " <> t <> " is not defined"
-  ENoSuchValue t -> "Value " <> t <> " is not defined"
+  NoSuchHelper t -> "Helper " <> t <> " is not defined"
+  NoSuchValue t -> "Value " <> t <> " is not defined"
   ParserError t -> "Parser error: " <> t
   Unrenderable t -> "Invalid mustache: cannot render " <> t
   Shadowing t -> "The local definition of " <> t <> " shadows an existing binding"
+  ShadowValue t -> "The local definition of value " <> t <> " shadows an existing binding"
+  ShadowPartial t -> "The local definition of partial " <> t <> " shadows an existing binding"
+  ShadowData t -> "The local definition of data variable @" <> t <> " shadows an existing binding"
   SomeError t -> "Error: " <> t
-
-renderEvalOutput :: EvalOutput -> Text
-renderEvalOutput = \case
-  Warning !ew -> "Warning: " <> renderEvalWarning ew
-  LogEntry !t -> "Log: " <> t
-
-renderEvalWarning :: EvalWarning -> Text
-renderEvalWarning = \case
-  WarnDNE !t -> t <> " does not exist"
-  NoSuchHelper !t -> "Helper " <> t <> " is not defined"
-  NoSuchValue !t -> "Value " <> t <> " is not defined"
-  ShadowValue !t -> "The local definition of value " <> t <> " shadows an existing binding"
-  ShadowPartial !t -> "The local definition of partial " <> t <> " shadows an existing binding"
-  ShadowData !t -> "The local definition of data variable @" <> t <> " shadows an existing binding"

@@ -24,7 +24,6 @@ library
                      , mtl                             == 2.2.*
                      , containers                      == 0.5.*
                      , blaze-html                      == 0.8.*
-                     , dlist                           == 0.7.*
 
   build-tools:         happy
 
