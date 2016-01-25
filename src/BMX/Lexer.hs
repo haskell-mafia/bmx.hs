@@ -5,9 +5,6 @@
 module BMX.Lexer (
     LexError (..)
   , tokenise
-  , tokens
-  , content
-  , mu
   , validIdChar
   ) where
 
@@ -19,7 +16,7 @@ import qualified Text.Parsec as Parsec
 import           Text.Parsec.Text
 import           Text.Read (read)
 
-import           BMX.Data
+import           BMX.Data.Token
 
 import           P hiding (many, null)
 
@@ -68,11 +65,11 @@ validIdChar = predi
 --
 
 token :: Parser [Token]
-token = mu <|> content
+token = mu <|> contentP
 
 -- | Raw Web Content
-content :: Parser [Token]
-content = do
+contentP :: Parser [Token]
+contentP = do
   body <- try (manyTillUnescaped notNull open) <|> plain
   guard (not (T.null body))
   pure [Content body]

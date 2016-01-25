@@ -1,5 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -11,23 +9,22 @@ module BMX.Data.Token (
   , renderFormat
   ) where
 
-import           Data.Data
 import           Data.Text (Text)
-import qualified Data.Text as T
-import           GHC.Generics
+
+import           BMX.Data.Format
 
 import           P
 
 newtype Tokens = Tokens { unTokens :: [Token] }
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq)
 
 data Token
-  -- * Raw Web Content
+  -- Raw Web Content
   = Content Text
   | RawContent Text
-  -- * Handlebars Comment
+  -- Handlebars Comment
   | Comment Text
-  -- * Handlebars expression prologue
+  -- Handlebars expression prologue
   | Open Format
   | OpenPartial Format
   | OpenPartialBlock Format
@@ -41,13 +38,13 @@ data Token
   | OpenCommentBlock Format
   | OpenDecorator Format
   | OpenDecoratorBlock Format
-  -- * Handlebars expression epilogue
+  -- Handlebars expression epilogue
   | Close Format
   | CloseCommentBlock Format
   | CloseUnescaped Format
   | CloseRawBlock
   | CloseRaw Text
-  -- * Expressions
+  -- Expressions
   | ID Text
   | SegmentID Text
   | String Text
@@ -62,15 +59,4 @@ data Token
   | Null
   | OpenBlockParams
   | CloseBlockParams
-  deriving (Show, Eq, Generic, Data, Typeable)
-
--- | Formatting control
-data Format
-  = Strip
-  | Verbatim
-  deriving (Show, Eq, Generic, Data, Typeable)
-
-renderFormat :: Format -> Text
-renderFormat = \case
-  Strip    -> "~"
-  Verbatim -> T.empty
+  deriving (Show, Eq)
