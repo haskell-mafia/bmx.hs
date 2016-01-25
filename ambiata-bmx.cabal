@@ -7,7 +7,7 @@ copyright:             (c) 2015 Ambiata.
 synopsis:              ambiata-bmx
 category:              System
 cabal-version:         >= 1.8
-build-type:            Simple
+build-type:            Custom
 description:           ambiata-bmx
 
 library
@@ -57,7 +57,6 @@ library
                        BMX.Data.Value
 
 
-
 executable bmx
   ghc-options:      -Wall -threaded -O2
   build-depends:
@@ -67,7 +66,9 @@ executable bmx
                      , text
                      , containers
 
-  main-is:             main/bmx.hs
+  hs-source-dirs:      gen
+
+  main-is:             ../main/bmx.hs
 
 
 test-suite test
