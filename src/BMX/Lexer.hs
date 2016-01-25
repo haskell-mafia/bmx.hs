@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiWayIf #-}
+{-# OPTIONS_HADDOCK hide #-}
 module BMX.Lexer (
     LexError (..)
   , tokenise

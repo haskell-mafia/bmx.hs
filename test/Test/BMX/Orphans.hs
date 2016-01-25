@@ -10,7 +10,7 @@ module Test.BMX.Orphans where
 import Data.Data
 import GHC.Generics
 
-import BMX.Data
+import BMX.Internal
 
 deriving instance Generic Template
 deriving instance Data Template

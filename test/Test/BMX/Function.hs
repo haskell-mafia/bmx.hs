@@ -8,8 +8,8 @@ import           Data.Text (Text)
 import           Test.QuickCheck
 
 import           BMX.Builtin
-import           BMX.Data
 import           BMX.Function
+import           BMX.Internal
 
 import           Test.BMX.Arbitrary ()
 
@@ -22,7 +22,7 @@ import           P
 flattenFunction :: [Value] -> [Param] -> FunctionT (BMX Identity) a -> Either Text a
 flattenFunction v p f = bimap renderEvalError id ee
   >>= either (Left . renderFunctionError) (return . id)
-  where ee = fst (runBMX (defaultState mempty) (runFunctionT v p f))
+  where ee = fst (runBMX (defaultState) (runFunctionT v p f))
 
 anything :: FunctionT (BMX Identity) [Value]
 anything = many value

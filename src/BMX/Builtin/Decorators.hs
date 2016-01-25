@@ -3,12 +3,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Builtin.Decorators where
 
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 
 import           BMX.Data
-import           BMX.Eval
 import           BMX.Function
 
 import           P
@@ -22,7 +19,7 @@ inline = BlockDecorator $ \block k -> do
     let newPartial = Partial (eval block)
     withPartial name newPartial k
 
-builtinDecorators :: (Applicative m, Monad m) => Map Text (Decorator m)
-builtinDecorators = M.fromList [
+builtinDecorators :: (Applicative m, Monad m) => [(Text, Decorator m)]
+builtinDecorators = [
     ("inline", inline)
   ]

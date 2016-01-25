@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK not-home #-}
 module BMX.Data.Eval (
   -- * Evaluation state and abstract functions over it
     EvalState (..)
@@ -24,7 +25,7 @@ module BMX.Data.Eval (
   , EvalWarning (..)
   , renderEvalWarning
   -- * Evaluation monad
-  , BMX
+  , BMX (..)
   , runBMX
   , runBMXIO
   , warn
@@ -58,7 +59,7 @@ import           P
 -- | The main evaluation monad. Allows local changes to the state,
 -- warnings, logs, and errors.
 newtype BMX m a = BMX { bmx :: EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m)) a }
-  deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
+  deriving (Functor, Applicative, Alternative, Monad)
 
 instance MonadTrans BMX where
   lift = BMX . lift . lift . lift
@@ -90,8 +91,8 @@ err = BMX . left
 -- -----------------------------------------------------------------------------
 -- Evaluation state
 
--- | EvalState holds the evaluation environment, i.e. all bound helpers,
--- partials, decorators, data variables, and the context stack.
+-- | EvalState holds the rendering environment, i.e. all bound helpers,
+-- partials, decorators, data variables, and the current variable context.
 data EvalState m = EvalState
   { -- | Stack of contexts, current on top.
     evalContext :: !([Context])
@@ -136,11 +137,11 @@ modifyContext fun es =
 
 -- | Push a new Context onto the stack for the duration of a single BMX action.
 withContext :: Monad m => Context -> BMX m a -> BMX m a
-withContext !c = local (pushContext c)
+withContext !c b = BMX $ local (pushContext c) (bmx b)
 
 -- | Register a variable in the current context for one action.
 withVariable :: Monad m => Text -> Value -> BMX m a -> BMX m a
-withVariable key val k = shadowWarning >> local (modifyContext putVar) k
+withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx k))
   where
     shadowWarning = do
       mv <- lookupValue (PathID key Nothing)
@@ -151,7 +152,7 @@ withVariable key val k = shadowWarning >> local (modifyContext putVar) k
 
 -- | Register a data variable in the current context for one action.
 withData :: Monad m => Text -> DataT (BMX m) -> BMX m a -> BMX m a
-withData key val k = shadowWarning >> local addData k
+withData key val k = shadowWarning >> BMX (local addData (bmx k))
   where
     shadowWarning = do
       md <- lookupData (DataPath (PathID key Nothing))
@@ -161,7 +162,7 @@ withData key val k = shadowWarning >> local addData k
 
 -- | Register a partial in the current context for one action.
 withPartial :: Monad m => Text -> PartialT (BMX m) -> BMX m a -> BMX m a
-withPartial name p k = shadowWarning >> local addPartial k
+withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
   where
     shadowWarning = do
       mv <- lookupPartial (PathID name Nothing)
@@ -171,7 +172,7 @@ withPartial name p k = shadowWarning >> local addPartial k
 
 -- | Look up a variable in the current context.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
-lookupValue i = ask >>= (go i . evalContext)
+lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -210,24 +211,24 @@ lookupValue i = ask >>= (go i . evalContext)
 
 -- | Look up a @data variable in the current context.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataT (BMX m)))
-lookupData (DataPath p) = ask >>= \es ->
+lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
     PathSeg t Nothing -> return (M.lookup t d)
     _ -> return Nothing
 
 lookupHelper :: Monad m => Path -> BMX m (Maybe (HelperT (BMX m)))
-lookupHelper p = do
+lookupHelper p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalHelpers st)
 
 lookupPartial :: Monad m => Path -> BMX m (Maybe (PartialT (BMX m)))
-lookupPartial p = do
+lookupPartial p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalPartials st)
 
 lookupDecorator :: Monad m => Path -> BMX m (Maybe (DecoratorT (BMX m)))
-lookupDecorator p = do
+lookupDecorator p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalDecorators st)
 

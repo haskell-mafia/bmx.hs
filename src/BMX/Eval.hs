@@ -1,16 +1,16 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK hide #-}
 module BMX.Eval (
     eval
   ) where
 
-import           Control.Monad.Reader hiding (mapM)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Data
-import           BMX.Function
+import           BMX.Internal.Function
 
 import           P
 
@@ -96,7 +96,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     help <- helperFromLit l
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral l)))
-              (runBlockHelper [] bp block inverse)
+              (runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -105,7 +105,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     args <- mapM evalExpr p
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral h)))
-              (runBlockHelper args bp block inverse)
+              (runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -234,6 +234,9 @@ valueFromLit = \case
     dataVal = \case
       (DValue v) -> Just v
       _ -> Nothing
+
+toParams :: BlockParams -> [Param]
+toParams (BlockParams ps) = fmap (Param . renderLiteral) ps
 
 -- -----------------------------------------------------------------------------
 -- Util
