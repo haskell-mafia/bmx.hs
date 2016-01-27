@@ -14,6 +14,7 @@ import           BMX.Internal.Function
 
 import           P
 
+-- | Evaluate a 'Template' in the current 'BMX' environment, yielding a 'Page'.
 eval :: (Applicative m, Monad m) => Template -> BMX m Page
 eval (Template ss) = foldDecorators ss (concatMapM evalStmt ss)
 

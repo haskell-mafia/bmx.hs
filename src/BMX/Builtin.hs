@@ -15,8 +15,8 @@ import           BMX.Builtin.Decorators (builtinDecorators)
 import           P
 
 -- | The default state: an empty context, all the helpers from
--- @BMX.Builtin.Helpers@, and all the decorators from
--- @BMX.Builtin.Decorators@.
+-- 'BMX.Builtin.Helpers.builtinHelpers', and all the decorators from
+-- 'BMX.Builtin.Decorators.builtinDecorators'.
 defaultState :: (Applicative m, Monad m) => EvalState m
 defaultState = mempty {
     evalHelpers = M.fromList builtinHelpers

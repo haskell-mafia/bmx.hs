@@ -76,7 +76,7 @@ runFunctionT s p f = do
 runFunctionT' :: Monad m => FunctionState -> FunctionT m a -> m (Either FunctionError a, FunctionState)
 runFunctionT' s = (flip runStateT) s . runEitherT . fun
 
--- | Lift a BMX action into FunctionT
+-- | Lift a BMX action into FunctionT.
 liftBMX :: (Monad m, Monad (t m), MonadTrans t) => t m a -> FunctionT (t m) a
 liftBMX = FunctionT . lift . lift
 

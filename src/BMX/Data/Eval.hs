@@ -103,28 +103,89 @@ err = BMX . left
 -- User-facing abstract types for Helper, Partial and Decorator, plus
 -- constructor functions.
 
+-- | Functions that produce either a 'Value' or a 'Page', after accepting
+-- 'Value' arguments and accessing the 'EvalState'.
 newtype Helper m = Helper { unHelper :: HelperT (BMX m) }
+
+-- | Functions that can make arbitrary changes to the 'EvalState'.
 newtype Decorator m = Decorator { unDecorator :: DecoratorT (BMX m) }
+
+-- | An object that produces a 'Page', for a 'Template' to render inline.
 newtype Partial m = Partial { unPartial :: PartialT (BMX m) }
 
+-- | Construct a regular 'Helper' out of a 'BMX' action. Regular
+-- helpers yield a 'Value'.
 helper :: Monad m => FunctionT (BMX m) Value -> Helper m
 helper = Helper . HelperT
 
+-- | Construct a block 'Helper' from a binary function that handles
+-- two 'Templates'. Block helpers yield a 'Page', typically (though
+-- not necessarily) by calling 'eval' on one of their 'Template'
+-- arguments.
 blockHelper :: Monad m => (Template -> Template -> FunctionT (BMX m) Page) -> Helper m
 blockHelper = Helper . BlockHelperT
 
+-- | Construct a regular 'Decorator' from a function accepting a continuation
+--  and yielding a 'Page'.
+--
+-- Decorators are specified in continuation-passing style. If the
+-- continuation is discarded, the the block will not be
+-- rendered. For example, this "abort" decorator will replace the
+-- surrounding Template with an empty 'Page':
+--
+-- > abort :: (Applicative m, Monad m) => Decorator m
+-- > abort = decorator $ \_k -> return mempty
 decorator :: Monad m => (BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
 decorator = Decorator . DecoratorT
 
+-- | Construct a block 'Decorator' from a function accepting a 'Template' block
+-- and a continuation, yielding a 'Page'.
+--
+-- As per 'decorator', all decorators are specified in continuation-passing style.
+-- If the continuation is discarded, the block will not be rendered.
+--
+-- The 'Template' argument can be used however one pleases. For
+-- example, this decorator replaces the whole block it was called in with
+-- its 'Template' argument if the variable @cool@ is not found:
+--
+-- > failoverCool :: (Applicative m, Monad m) => Decorator m
+-- > failoverCool = blockDecorator $ \body k ->
+-- >   liftBMX $ do
+-- >     mv <- lookupValue "cool"
+-- >     maybe (eval body) k mv
+--
+-- Running it on an empty context with this 'Template' will eradicate surrounding elements, returning only @" not cool! "@:
+--
+-- >>> ... abcde {{#* failoverCool }} not cool! {{/failoverCool}} ... {{abcde}}
+-- " not cool! "
+--
+-- See the implementation of 'BMX.Builtin.Decorators.inline' for another example.
 blockDecorator :: Monad m => (Template -> BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
 blockDecorator = Decorator . BlockDecoratorT
 
+-- | Construct a 'Partial' from some 'BMX' action yielding a 'Page'.
+-- Most partials will be constructed with 'partialFromTemplate'. However,
+-- the following is a valid partial:
+--
+-- > emptyPage :: (Applicative m, Monad m) => Partial m
+-- > emptyPage = partial (return mempty)
+--
+-- Likewise, one could construct an IO partial if a good excuse could
+-- be procured.
 partial :: Monad m => BMX m Page -> Partial m
 partial = Partial . PartialT
 
 -- -----------------------------------------------------------------------------
 -- Data variables (special vars prefixed with an @)
 
+-- | Data variables. Helpers and Decorators can register data variables to
+-- be invoked by some 'Template'.
+--
+-- For example, the builtin helper 'each' sets @\@first@ and @\@last@ to @True@
+-- when on the first / last iteration.
+--
+-- Likewise, when invoking a partial block, the data variable @\@partial-block@
+-- contains the block argument (in the form of a 'Partial').
 data DataVar m
   = DataValue Value
   | DataPartial (Partial m)
@@ -136,6 +197,10 @@ data DataVar m
 
 -- | EvalState holds the rendering environment, i.e. all bound helpers,
 -- partials, decorators, data variables, and the current variable context.
+--
+-- The type parameter @m@ refers to the base monad for the registered
+-- helpers, partials and decorators. It is commonly 'Identity' or 'IO',
+-- though a Template can be rendered on top of any monad stack.
 data EvalState m = EvalState
   { -- | Stack of contexts, current on top.
     evalContext :: !([Context])
@@ -215,6 +280,7 @@ withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
 
 -- | Look up a variable in the current context.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
+-- FIX replace Path with some public type - probably Text
 lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
@@ -252,7 +318,7 @@ lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
       PathID _ r -> r
       PathSeg _ r -> r
 
--- | Look up a @data variable in the current context.
+-- | Look up a @\@data@ variable in the current context.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
 lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
   let d = evalData es in case p of

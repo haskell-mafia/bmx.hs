@@ -10,39 +10,47 @@ import           P
 -- -----------------------------------------------------------------------------
 -- Argument parsers for helpers / decorators
 
+-- | The @any@ combinator. Parse a single 'Value' of any variety.
 value :: Monad m => FunctionT m Value
 value = one "value" (const True)
 
+-- | Parse a single 'StringV'.
 string :: Monad m => FunctionT m Value
 string = one "string" isString
   where isString (StringV _) = True
         isString _ = False
 
+-- | Parse a single 'IntV'.
 number :: Monad m => FunctionT m Value
 number = one "number" isNum
   where isNum (IntV _) = True
         isNum _ = False
 
+-- | Parse a single 'BoolV'.
 boolean :: Monad m => FunctionT m Value
 boolean = one "boolean" isBool
   where isBool (BoolV _) = True
         isBool _ = False
 
+-- | Parse a single 'NullV'.
 nullv :: Monad m => FunctionT m Value
 nullv = one "null" isNull
   where isNull NullV = True
         isNull _ = False
 
+-- | Parse a single 'UndefinedV'.
 undef :: Monad m => FunctionT m Value
 undef = one "undefined" isUndef
   where isUndef UndefinedV = True
         isUndef _ = False
 
+-- | Parse a single 'ContextV'.
 context :: Monad m => FunctionT m Value
 context = one "context" isContext
   where isContext (ContextV _) = True
         isContext _ = False
 
+-- | Parse a single 'ListV'.
 list :: Monad m => FunctionT m Value
 list = one "list" isList
   where isList (ListV _) = True

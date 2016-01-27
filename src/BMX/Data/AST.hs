@@ -2,7 +2,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK not-home #-}
 module BMX.Data.AST (
     Template (..)
   , Stmt (..)
@@ -27,6 +26,9 @@ import           BMX.Data.Token
 
 import           P
 
+-- | A Template in the form of an abstract syntax tree, waiting to be rendered.
+--
+-- Build a Template with 'templateFromText'.
 newtype Template = Template [Stmt]
   deriving (Show, Eq)
 
