@@ -18,7 +18,7 @@ import           Test.BMX.Arbitrary
 
 import           P
 
-rendersTo :: Text -> EvalState Identity -> Either Text Text
+rendersTo :: Text -> BMXState Identity -> Either Text Text
 rendersTo input st = bimap renderBMXError renderPage
   $ templateFromText input >>= renderTemplate st
 
@@ -27,6 +27,31 @@ escapeText = T.toStrict . B.renderHtml . B.toHtml
 tshow = T.pack . show
 mustache t = "{{" <> t <> "}}"
 single n v = defaultState `usingContext` contextFromList [(n, v)]
+
+vacuousHelper, vacuousBlockHelper :: Monad m => Helper m
+vacuousHelper = helper $ return UndefinedV
+vacuousBlockHelper = blockHelper $ \_ _ -> return mempty
+vacuousPartial :: Monad m => Partial m
+vacuousPartial = partial $ return mempty
+vacuousDecorator, vacuousBlockDecorator :: Monad m => Decorator m
+vacuousDecorator = decorator $ \k -> liftBMX k
+vacuousBlockDecorator = blockDecorator $ \_ k -> liftBMX k
+
+-- -----------------------------------------------------------------------------
+-- Public interface
+
+-- shadowing a helper/partial/decorator should throw
+prop_eval_shadow_helper = forAll simpleId $ \n ->
+  isLeft (rendersTo mempty (mempty `usingHelpers` [(n, vacuousHelper)]
+                                   `usingHelpers` [(n, vacuousBlockHelper)]))
+
+prop_eval_shadow_partial = forAll simpleId $ \n ->
+  isLeft (rendersTo mempty (mempty `usingPartials` [(n, mempty)]
+                                   `usingPartials` [(n, mempty)]))
+
+prop_eval_shadow_decorator = forAll simpleId $ \n ->
+  isLeft (rendersTo mempty (mempty `usingDecorators` [(n, vacuousDecorator)]
+                                   `usingDecorators` [(n, vacuousBlockDecorator)]))
 
 -- -----------------------------------------------------------------------------
 -- Mustache tests (no helpers)
@@ -173,7 +198,7 @@ prop_eval_unit_partial = once $
 -- partial with custom context
 prop_eval_unit_partial_ctx = once $
   rendersTo "{{> authorid author }}"
-  (testContext `usingPartials` [("authorid", testPartial)])
+  (testContext `usingPartials` [("authorid", testPartial')])
     === pure "The author's name is Yehuda Katz and their ID is 47"
 
 -- partial with custom context and a hash
@@ -222,7 +247,7 @@ prop_eval_unit_options_bleed_helper = once . isLeft $
   rendersTo "{{ lookup . 'foo' foo='bar' }}" mempty
 
 
-testContext :: EvalState Identity
+testContext :: BMXState Identity
 testContext = defaultState `usingContext` (contextFromList [
     ("title", StringV "My First Blog Post!")
   , ("author", ContextV $ contextFromList [

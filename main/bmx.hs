@@ -22,7 +22,7 @@ main = do
          (drawResult . renderTemplate testState)
          parsed
 
-testState :: (Applicative m, Monad m) => EvalState m
+testState :: (Applicative m, Monad m) => BMXState m
 testState = defaultState
   `usingContext` testContext
   `usingPartials` [("authorid", testPartial)]

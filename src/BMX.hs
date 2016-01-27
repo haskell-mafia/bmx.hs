@@ -6,7 +6,6 @@
 -- embedded in Haskell for static or server-side rendering.
 --
 
-
 module BMX (
   -- * Differences from Handlebars
   -- $whatsnew
@@ -26,7 +25,7 @@ module BMX (
   -- $rendering
   , renderTemplate
   , renderTemplateIO
-  , EvalState
+  , BMXState
   , defaultState
 
   -- * Errors
@@ -59,6 +58,7 @@ module BMX (
 
 import           Control.Monad.Identity (Identity)
 import           Control.Monad.IO.Class (MonadIO)
+import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 
@@ -159,6 +159,47 @@ import           P
 -- See <BMX-Function.html BMX.Function> for details on implementing
 -- custom decorators.
 
+data BMXState m = BMXState
+  { bmxContext :: Context
+  , bmxPartials :: [(Text, Partial m)]
+  , bmxHelpers :: [(Text, Helper m)]
+  , bmxDecorators :: [(Text, Decorator m)]
+  }
+
+instance Monoid (BMXState m) where
+  mempty = BMXState mempty mempty mempty mempty
+  mappend a b = BMXState {
+      bmxContext = bmxContext a <> bmxContext b
+    , bmxPartials = bmxPartials a <> bmxPartials b
+    , bmxHelpers = bmxHelpers a <> bmxHelpers b
+    , bmxDecorators = bmxDecorators a <> bmxDecorators b
+    }
+
+-- | The default state: an empty context, all the helpers from
+-- 'BMX.Builtin.Helpers.builtinHelpers', and all the decorators from
+-- 'BMX.Builtin.Decorators.builtinDecorators'.
+defaultState :: (Applicative m, Monad m) => BMXState m
+defaultState = mempty {
+    bmxHelpers = builtinHelpers
+  , bmxDecorators = builtinDecorators
+  }
+
+-- | Set the initial context in an 'EvalState'.
+usingContext :: (Applicative m, Monad m) => BMXState m -> Context -> BMXState m
+usingContext st c = st { bmxContext = c }
+
+-- | Add a named collection of templates to the 'EvalState' as partials.
+usingPartials :: (Applicative m, Monad m) => BMXState m -> [(Text, Template)] -> BMXState m
+usingPartials st ps = st { bmxPartials = (fmap . fmap) partialFromTemplate ps <> bmxPartials st }
+
+-- | Add a named collection of helpers to the 'EvalState'.
+usingHelpers :: (Applicative m, Monad m) => BMXState m -> [(Text, Helper m)] -> BMXState m
+usingHelpers st hs = st { bmxHelpers = hs <> bmxHelpers st }
+
+-- | Add a named collection of decorators to the 'EvalState'.
+usingDecorators :: (Applicative m, Monad m) => BMXState m -> [(Text, Decorator m)] -> BMXState m
+usingDecorators st ds = st { bmxDecorators = ds <> bmxDecorators st }
+
 -- | Lex and parse a 'Template' from some 'Text'.
 templateFromText :: Text -> Either BMXError Template
 templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
@@ -169,31 +210,43 @@ templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
 --
 -- All helpers, partials and decorators must be pure. Use 'renderTemplateIO'
 -- if IO helpers are required.
-renderTemplate :: EvalState Identity -> Template -> Either BMXError Page
-renderTemplate st t = bimap BMXEvalError id $ fst (runBMX st (eval t))
+renderTemplate :: BMXState Identity -> Template -> Either BMXError Page
+renderTemplate bst t = do
+  st <- packState bst
+  bimap BMXEvalError id $ fst (runBMX st (eval t))
 
 -- | Apply a 'Template' to some 'EvalState', producing a 'Page'.
 --
 -- Helpers, partials and decorators may involve IO. Use @renderTemplate@ if
 -- no IO helpers are to be invoked.
-renderTemplateIO :: (Applicative m, MonadIO m) => EvalState m -> Template -> m (Either BMXError Page)
-renderTemplateIO es t = fmap (bimap BMXEvalError id . fst) (runBMXIO es (eval t))
+renderTemplateIO :: (Applicative m, MonadIO m) => BMXState m -> Template -> m (Either BMXError Page)
+renderTemplateIO bst t = either (return . Left) runIt (packState bst)
+  where runIt es = do
+          ep <- runBMXIO es (eval t)
+          return (bimap BMXEvalError id . fst $ ep)
 
--- | Set the initial context in an 'EvalState'.
-usingContext :: (Applicative m, Monad m) => EvalState m -> Context -> EvalState m
-usingContext st c = st { evalContext = [c] }
+-- | Pack the association lists from 'BMXState' into the maps of 'EvalState',
+-- throwing errors whenever shadowing is encountered.
+packState :: (Applicative m, Monad m) => BMXState m -> Either BMXError (EvalState m)
+packState bst = do
+  let ctx = [bmxContext bst]
+  partials <- mapUnique (bmxPartials bst)
+  helpers <- mapUnique (bmxHelpers bst)
+  decorators <- mapUnique (bmxDecorators bst)
+  let dta = mempty
+  return EvalState {
+      evalContext = ctx
+    , evalData = dta
+    , evalHelpers = helpers
+    , evalPartials = partials
+    , evalDecorators = decorators
+    }
 
--- | Add a named collection of partials to the 'EvalState'.
-usingPartials :: (Applicative m, Monad m) => EvalState m -> [(Text, Template)] -> EvalState m
-usingPartials st kv = st { evalPartials = fmap partialFromTemplate (M.fromList kv) }
-
--- | Add a named collection of helpers to the 'EvalState'.
-usingHelpers :: (Applicative m, Monad m) => EvalState m -> [(Text, Helper m)] -> EvalState m
-usingHelpers st kv = st { evalHelpers = M.fromList kv }
-
--- | Add a named collection of decorators to the 'EvalState'.
-usingDecorators :: (Applicative m, Monad m) => EvalState m -> [(Text, Decorator m)] -> EvalState m
-usingDecorators st kv = st { evalDecorators = M.fromList kv }
+mapUnique :: [(Text, a)] -> Either BMXError (Map Text a)
+mapUnique = foldM foldFun M.empty
+  where foldFun m (k, v)  = if M.member k m
+          then Left (BMXEvalError (SomeError "shadowing - i need my own error!"))
+          else Right (M.insert k v m)
 
 -- | Produce a 'Partial' from an ordinary 'Template'.
 partialFromTemplate :: (Applicative m, Monad m) => Template -> Partial m
