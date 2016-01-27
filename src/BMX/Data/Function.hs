@@ -12,7 +12,7 @@ module BMX.Data.Function (
   , one
   , param
   -- * Function arity and type errors
-  , FunctionError
+  , FunctionError (..)
   , renderFunctionError
   -- * The various types of function
   , HelperT (..)

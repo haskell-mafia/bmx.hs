@@ -14,11 +14,10 @@ main :: IO ()
 main = do
   inp <- T.getContents
   let parsed = templateFromText inp
-  either (T.putStrLn . renderParseError) print parsed
+  either (T.putStrLn . renderBMXError) print parsed
   let scream = T.hPutStrLn stderr
-      drawResult (epage, er) = do
-        either (scream . renderEvalError) (T.putStrLn . renderPage) epage
-        mapM_ (scream . renderEvalOutput) er
+      drawResult epage =
+        either (scream . renderBMXError) (T.putStrLn . renderPage) epage
   either (const $ return ())
          (drawResult . renderTemplate testState)
          parsed

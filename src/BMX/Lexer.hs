@@ -17,13 +17,9 @@ import qualified Text.Parsec as Parsec
 import           Text.Parsec.Text
 import           Text.Read (read)
 
-import           BMX.Data.Token
+import           BMX.Data
 
 import           P hiding (many, null)
-
-
-newtype LexError = LexError { renderLexError :: Text }
-  deriving (Eq, Show)
 
 
 tokenise :: Text -> Either LexError [Token]

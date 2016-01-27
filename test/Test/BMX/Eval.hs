@@ -3,7 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Test.BMX.Eval where
 
--- import qualified Data.Map.Strict as M
+import           Control.Monad.Identity (Identity)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T (toStrict)
@@ -18,22 +18,15 @@ import           Test.BMX.Arbitrary
 
 import           P
 
-rendersTo :: Text -> Context -> Either Text Text
-rendersTo input ctx = flatten (renderTemplate (defaultState `usingContext` ctx)) (templateFromText input)
-
-rendersWithPartialsTo :: Text -> Context -> [(Text, Template)] -> Either Text Text
-rendersWithPartialsTo input ctx partials = flatten renderIt (templateFromText input)
-  where renderIt = renderTemplate (defaultState `usingContext` ctx `usingPartials` partials)
-
-flatten f = bimap renderEvalError id . either
-  (Left . ParserError . renderParseError)
-  (fmap renderPage . fst . f)
+rendersTo :: Text -> EvalState Identity -> Either Text Text
+rendersTo input st = bimap renderBMXError renderPage
+  $ templateFromText input >>= renderTemplate st
 
 escapeText = T.toStrict . B.renderHtml . B.toHtml
 
 tshow = T.pack . show
 mustache t = "{{" <> t <> "}}"
-single n v = contextFromList [(n, v)]
+single n v = defaultState `usingContext` contextFromList [(n, v)]
 
 -- -----------------------------------------------------------------------------
 -- Mustache tests (no helpers)
@@ -80,10 +73,10 @@ prop_eval_mustache_undefined_var_fails = forAll simpleId $ \n ->
 
 -- comments should go away
 prop_eval_comment_elim_1 t ctx = validComment t ==>
-  rendersTo ("{{!--" <> t <> "--}}") ctx === pure T.empty
+  rendersTo ("{{!--" <> t <> "--}}") (mempty `usingContext` ctx) === pure T.empty
 
 prop_eval_comment_elim_2 t ctx = validWeakComment t ==>
-  rendersTo ("{{!" <> t <> "}}") ctx === pure T.empty
+  rendersTo ("{{!" <> t <> "}}") (mempty `usingContext` ctx) === pure T.empty
 
 -- -----------------------------------------------------------------------------
 -- Partials
@@ -107,7 +100,7 @@ prop_eval_inline_content t = validContent t ==> forAll simpleId $ \n ->
 -- -----------------------------------------------------------------------------
 -- Raw blocks
 prop_eval_raw_block_id = forAll rawContent $ \t ->
-  rendersTo ("{{{{noop}}}}" <> t <> "{{{{/noop}}}}") mempty === pure t
+  rendersTo ("{{{{noop}}}}" <> t <> "{{{{/noop}}}}") defaultState === pure t
 
 -- -----------------------------------------------------------------------------
 -- regression tests / units
@@ -173,28 +166,32 @@ prop_eval_unit_lookup_2 = once $
 
 -- regular partial
 prop_eval_unit_partial = once $
-  rendersWithPartialsTo "{{> mypartial }}" testContext ([("mypartial", simplePartial)])
+  rendersTo "{{> mypartial }}"
+  (testContext `usingPartials` [("mypartial", simplePartial)])
     === pure "They got those chewy pretzels"
 
 -- partial with custom context
 prop_eval_unit_partial_ctx = once $
-  rendersWithPartialsTo "{{> authorid author }}" testContext ([("authorid", testPartial')])
+  rendersTo "{{> authorid author }}"
+  (testContext `usingPartials` [("authorid", testPartial)])
     === pure "The author's name is Yehuda Katz and their ID is 47"
 
 -- partial with custom context and a hash
 prop_eval_unit_partial_hash = once $
-  rendersWithPartialsTo "{{> authorid author arg=500}}" testContext ([("authorid", testPartial)])
+  rendersTo "{{> authorid author arg=500}}"
+  (testContext `usingPartials` [("authorid", testPartial)])
     === pure "The author's name is Yehuda Katz and their ID is 47 arg = 500"
 
 -- a dynamic partial with custom context and a hash
 prop_eval_unit_partial_dynamic = once $
-  rendersWithPartialsTo "{{> (lookup . 'component') author arg=555}}" testContext [("authorid", testPartial)]
+  rendersTo "{{> (lookup . 'component') author arg=555}}"
+  (testContext `usingPartials` [("authorid", testPartial)])
     === pure "The author's name is Yehuda Katz and their ID is 47 arg = 555"
 
 -- a partial invoked as partial block can access @partial-block special variable
 prop_eval_unit_partial_block_data = once $
-  rendersWithPartialsTo "{{#> mypartial }}{{title}}{{/mypartial}}" testContext
-    ([("mypartial", testPartialBlock)])
+  rendersTo "{{#> mypartial }}{{title}}{{/mypartial}}"
+  (testContext `usingPartials` [("mypartial", testPartialBlock)])
     === pure "block = My First Blog Post!"
 
 -- Can look up item in list
@@ -225,8 +222,8 @@ prop_eval_unit_options_bleed_helper = once . isLeft $
   rendersTo "{{ lookup . 'foo' foo='bar' }}" mempty
 
 
-testContext :: Context
-testContext = contextFromList [
+testContext :: EvalState Identity
+testContext = defaultState `usingContext` (contextFromList [
     ("title", StringV "My First Blog Post!")
   , ("author", ContextV $ contextFromList [
                    ("id", IntV 47)
@@ -240,7 +237,7 @@ testContext = contextFromList [
   , ("body", StringV "My first post. Wheeeee!")
   , ("html", StringV "<a href=\"google.com\">Cool Site</a>")
   , ("component", StringV "authorid")
-  ]
+  ])
 
 testPartial =
   Template

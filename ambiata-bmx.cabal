@@ -48,6 +48,7 @@ library
                        BMX.Parser
                        BMX.Data
                        BMX.Data.AST
+                       BMX.Data.Error
                        BMX.Data.Eval
                        BMX.Data.Format
                        BMX.Data.Function
@@ -95,7 +96,7 @@ test-suite test
                      , ambiata-disorder-core
                      , ambiata-disorder-corpus
                      , ambiata-p
-                     , QuickCheck
+                     , QuickCheck                      >= 2.8.2 && < 2.9
                      , quickcheck-instances            == 0.3.*
                      , text
                      , attoparsec

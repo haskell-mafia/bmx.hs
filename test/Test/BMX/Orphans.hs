@@ -7,10 +7,20 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 module Test.BMX.Orphans where
 
-import Data.Data
-import GHC.Generics
+import           Data.Data
+import qualified Data.Text as T
+import           GHC.Generics
 
-import BMX.Internal
+import           BMX.Internal
+
+import           P
+
+deriving instance Eq EvalError
+deriving instance Eq FunctionError
+
+deriving instance Eq BMXError
+instance Show BMXError where
+  show = T.unpack . renderBMXError
 
 deriving instance Generic Template
 deriving instance Data Template

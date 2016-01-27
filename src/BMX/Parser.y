@@ -302,9 +302,6 @@ simple_id :: { Literal }:
 
 {
 
-newtype ParseError = ParseError { renderParseError :: Text }
-  deriving (Eq, Show)
-
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
 prg :: [Stmt] -> Template
