@@ -70,7 +70,7 @@ usingContext :: (Applicative m, Monad m) => EvalState m -> Context -> EvalState 
 usingContext st c = st { evalContext = [c] }
 
 usingPartials :: (Applicative m, Monad m) => EvalState m -> [(Text, Template)] -> EvalState m
-usingPartials st kv = st { evalPartials = fmap (Partial . eval) (M.fromList kv) }
+usingPartials st kv = st { evalPartials = fmap partialFromTemplate (M.fromList kv) }
 
 usingHelpers :: (Applicative m, Monad m) => EvalState m -> [(Text, Helper m)] -> EvalState m
 usingHelpers st kv = st { evalHelpers = M.fromList kv }
@@ -79,4 +79,4 @@ usingDecorators :: (Applicative m, Monad m) => EvalState m -> [(Text, Decorator 
 usingDecorators st kv = st { evalDecorators = M.fromList kv }
 
 partialFromTemplate :: (Applicative m, Monad m) => Template -> Partial m
-partialFromTemplate = Partial . eval
+partialFromTemplate = partial . eval

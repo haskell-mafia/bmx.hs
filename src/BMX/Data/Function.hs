@@ -111,18 +111,18 @@ renderFunctionError = \case
 
 data HelperT m
   -- | Helpers are straightforward local operations on the BMX state, yielding a value
-  = Helper (FunctionT m Value)
+  = HelperT (FunctionT m Value)
   -- | Block helpers render a page from a main branch and an inverse (else)
-  | BlockHelper (Template -> Template -> FunctionT m Page)
+  | BlockHelperT (Template -> Template -> FunctionT m Page)
 
 data PartialT m
   -- | Partials are just BMX actions producing a Page.
   -- In practice, they will probably be lazy, fully-applied calls to eval.
   -- Partials invoked as blocks can access a template fragment, @partial-block.
-  = Partial (m Page)
+  = PartialT (m Page)
 
 data DecoratorT m
   -- | Decorators make local changes to the BMX state, and accept a continuation
-  = Decorator (m Page -> FunctionT m Page)
+  = DecoratorT (m Page -> FunctionT m Page)
   -- | Block decorators accept a template fragment and a continuation
-  | BlockDecorator (Template -> m Page -> FunctionT m Page)
+  | BlockDecoratorT (Template -> m Page -> FunctionT m Page)

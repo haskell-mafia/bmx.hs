@@ -145,7 +145,7 @@ evalPartialBlock l1 r1 l2 r2 e ee hash b =
   -- Call evalPartial with custom error function (const (eval b)) - failover
   withData "partial-block" blockData (evalPartial l1 r1 l2 r2 e ee hash failOver)
   where
-    blockData = DPartial (Partial (eval b))
+    blockData = DataPartial (partial (eval b))
     failOver = const (eval b)
 
 -- | Evaluate a raw block.
@@ -209,7 +209,7 @@ partialFromLit = \case
   DataL p -> do
     d <- lookupData p
     return $ case d of
-      Just (DPartial part) -> Just part
+      Just (DataPartial part) -> Just part
       _ -> Nothing
   _ -> err (TypeError "partial" "literal")
 
@@ -232,7 +232,7 @@ valueFromLit = \case
   where
     val = return . Just
     dataVal = \case
-      (DValue v) -> Just v
+      (DataValue v) -> Just v
       _ -> Nothing
 
 toParams :: BlockParams -> [Param]

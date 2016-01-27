@@ -17,6 +17,17 @@ module BMX.Data.Eval (
   , lookupHelper
   , lookupPartial
   , lookupDecorator
+  -- * Abstract user-facing types for Partial, Decorator, Helper
+  , Helper (..)
+  , helper
+  , blockHelper
+  , Partial (..)
+  , partial
+  , Decorator (..)
+  , decorator
+  , blockDecorator
+  -- * Data variables
+  , DataVar (..)
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
@@ -46,8 +57,8 @@ import           Safe (atMay, headMay, readMay)
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
-import           BMX.Data.Data
 import           BMX.Data.Function
+import           BMX.Data.Page
 import           BMX.Data.Value
 
 import           P
@@ -89,6 +100,38 @@ err :: Monad m => EvalError -> BMX m a
 err = BMX . left
 
 -- -----------------------------------------------------------------------------
+-- User-facing abstract types for Helper, Partial and Decorator, plus
+-- constructor functions.
+
+newtype Helper m = Helper { unHelper :: HelperT (BMX m) }
+newtype Decorator m = Decorator { unDecorator :: DecoratorT (BMX m) }
+newtype Partial m = Partial { unPartial :: PartialT (BMX m) }
+
+helper :: Monad m => FunctionT (BMX m) Value -> Helper m
+helper = Helper . HelperT
+
+blockHelper :: Monad m => (Template -> Template -> FunctionT (BMX m) Page) -> Helper m
+blockHelper = Helper . BlockHelperT
+
+decorator :: Monad m => (BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
+decorator = Decorator . DecoratorT
+
+blockDecorator :: Monad m => (Template -> BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
+blockDecorator = Decorator . BlockDecoratorT
+
+partial :: Monad m => BMX m Page -> Partial m
+partial = Partial . PartialT
+
+-- -----------------------------------------------------------------------------
+-- Data variables (special vars prefixed with an @)
+
+data DataVar m
+  = DataValue Value
+  | DataPartial (Partial m)
+  | DataHelper (Helper m)
+  | DataDecorator (Decorator m)
+
+-- -----------------------------------------------------------------------------
 -- Evaluation state
 
 -- | EvalState holds the rendering environment, i.e. all bound helpers,
@@ -98,13 +141,13 @@ data EvalState m = EvalState
     evalContext :: !([Context])
     -- | Special variables set by various things. Can be values, partials, etc.
     -- See http://handlebarsjs.com/reference.html.
-  , evalData :: !(Map Text (DataT (BMX m)))
+  , evalData :: !(Map Text (DataVar m))
     -- | All currently available helpers.
-  , evalHelpers :: !(Map Text (HelperT (BMX m)))
+  , evalHelpers :: !(Map Text (Helper m))
     -- | All currently available partials.
-  , evalPartials :: !(Map Text (PartialT (BMX m)))
+  , evalPartials :: !(Map Text (Partial m))
     -- | All currently available decorators.
-  , evalDecorators :: !(Map Text (DecoratorT (BMX m)))
+  , evalDecorators :: !(Map Text (Decorator m))
   }
 
 instance Monoid (EvalState m) where
@@ -151,7 +194,7 @@ withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
 -- | Register a data variable in the current context for one action.
-withData :: Monad m => Text -> DataT (BMX m) -> BMX m a -> BMX m a
+withData :: Monad m => Text -> DataVar m -> BMX m a -> BMX m a
 withData key val k = shadowWarning >> BMX (local addData (bmx k))
   where
     shadowWarning = do
@@ -161,7 +204,7 @@ withData key val k = shadowWarning >> BMX (local addData (bmx k))
     addData es = es { evalData = M.insert key val (evalData es) }
 
 -- | Register a partial in the current context for one action.
-withPartial :: Monad m => Text -> PartialT (BMX m) -> BMX m a -> BMX m a
+withPartial :: Monad m => Text -> Partial m -> BMX m a -> BMX m a
 withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
   where
     shadowWarning = do
@@ -210,24 +253,24 @@ lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
       PathSeg _ r -> r
 
 -- | Look up a @data variable in the current context.
-lookupData :: Monad m => DataPath -> BMX m (Maybe (DataT (BMX m)))
+lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
 lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
     PathSeg t Nothing -> return (M.lookup t d)
     _ -> return Nothing
 
-lookupHelper :: Monad m => Path -> BMX m (Maybe (HelperT (BMX m)))
+lookupHelper :: Monad m => Path -> BMX m (Maybe (Helper m))
 lookupHelper p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalHelpers st)
 
-lookupPartial :: Monad m => Path -> BMX m (Maybe (PartialT (BMX m)))
+lookupPartial :: Monad m => Path -> BMX m (Maybe (Partial m))
 lookupPartial p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalPartials st)
 
-lookupDecorator :: Monad m => Path -> BMX m (Maybe (DecoratorT (BMX m)))
+lookupDecorator :: Monad m => Path -> BMX m (Maybe (Decorator m))
 lookupDecorator p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalDecorators st)

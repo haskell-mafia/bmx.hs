@@ -48,7 +48,6 @@ library
                        BMX.Parser
                        BMX.Data
                        BMX.Data.AST
-                       BMX.Data.Data
                        BMX.Data.Eval
                        BMX.Data.Format
                        BMX.Data.Function

@@ -13,10 +13,10 @@ import           P
 -- | The "inline" block decorator. Turns the block argument into a partial
 -- with the name of the first argument.
 inline :: (Applicative m, Monad m) => Decorator m
-inline = BlockDecorator $ \block k -> do
+inline = blockDecorator $ \block k -> do
   (StringV name) <- string
   liftBMX $ do
-    let newPartial = Partial (eval block)
+    let newPartial = partial (eval block)
     withPartial name newPartial k
 
 builtinDecorators :: (Applicative m, Monad m) => [(Text, Decorator m)]

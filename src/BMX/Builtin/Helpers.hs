@@ -82,7 +82,7 @@ each = blockHelper $ \thenp elsep -> do
   iter <- list <|> context
   par1 <- optional param -- block param: name for current item (list), name for key (ctx)
   par2 <- optional param -- block param: name for current loop idx (list), name for val (ctx)
-  -- This is the worst, mostly because of special variables.
+  -- This code is the worst, mostly because of special variables.
   let go = case iter of
         ContextV c -> fmap fold (sequence (eachMap c))
         ListV l -> fmap fold (sequence (eachList l))
@@ -97,12 +97,12 @@ each = blockHelper $ \thenp elsep -> do
       indices n (k:[]) = [index n (last k)]
       indices _ [] = []
       -- Register various special variables
-      index i k = withData "index" (DValue (IntV i)) k
-      stepKV (k,v) = withData "key" (DValue (StringV k))
+      index i k = withData "index" (DataValue (IntV i)) k
+      stepKV (k,v) = withData "key" (DataValue (StringV k))
         . withName par1 (StringV k) . withName par2 v . withVariable "this" v $ eval thenp
       step v = withVariable "this" v . withName par1 v $ eval thenp
-      frst = withData "first" (DValue (BoolV True))
-      last = withData "last" (DValue (BoolV True))
+      frst = withData "first" (DataValue (BoolV True))
+      last = withData "last" (DataValue (BoolV True))
       -- Register blockparams if they were supplied
       withName Nothing _ k = k
       withName (Just (Param n)) v k = withVariable n v k
