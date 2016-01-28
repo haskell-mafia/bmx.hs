@@ -30,7 +30,6 @@ module BMX (
   , defaultState
 
   -- * Debugging a Template
-  , debugTemplate
   , debugTemplateIO
 
   -- * Errors
@@ -66,7 +65,6 @@ import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import           System.IO (IO)
-import           System.IO.Unsafe (unsafePerformIO)
 
 import           BMX.Builtin
 import           BMX.Data
@@ -248,25 +246,12 @@ renderTemplateM bst t = either (return . Left) runIt (packState bst)
 renderTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
 renderTemplateIO bst = renderTemplateM bst
 
-{-# WARNING debugTemplate "Do not use 'debugTemplate' in production code" #-}
--- | Evaluate a 'Template' against some 'BMXState' with debugging
--- helpers enabled.
---
--- Debugging helpers are enumerated in 'debugHelpers'.
---
--- Do not use this in production. This is a convenience function. Any
--- IO required by debugging helpers will be achieved by
--- 'unsafePerformIO'.
-debugTemplate :: BMXState IO -> Template -> Either BMXError Page
-debugTemplate st = unsafePerformIO . renderTemplateIO (st `usingHelpers` debugHelpers)
-
 {-# WARNING debugTemplateIO "Do not use 'debugTemplateIO' in production code" #-}
 -- | Evaluate a 'Template' against some 'BMXState' with debugging helpers enabled.
 --
 -- Debugging helpers are enumerated in 'debugHelpers'.
 --
--- Do not use this in production. This is a convenience function.
--- Debugging helpers may perform IO.
+-- Debugging helpers may perform IO. Do not use this in production.
 debugTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
 debugTemplateIO st = renderTemplateIO (st `usingHelpers` debugHelpers)
 
