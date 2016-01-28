@@ -3,6 +3,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK not-home #-}
 module BMX.Data.Eval (
   -- * Evaluation state and abstract functions over it
     EvalState (..)
@@ -16,6 +17,17 @@ module BMX.Data.Eval (
   , lookupHelper
   , lookupPartial
   , lookupDecorator
+  -- * Abstract user-facing types for Partial, Decorator, Helper
+  , Helper (..)
+  , helper
+  , blockHelper
+  , Partial (..)
+  , partial
+  , Decorator (..)
+  , decorator
+  , blockDecorator
+  -- * Data variables
+  , DataVar (..)
   -- * Evaluation errors and results
   , EvalError (..)
   , renderEvalError
@@ -24,7 +36,7 @@ module BMX.Data.Eval (
   , EvalWarning (..)
   , renderEvalWarning
   -- * Evaluation monad
-  , BMX
+  , BMX (..)
   , runBMX
   , runBMXIO
   , warn
@@ -45,8 +57,8 @@ import           Safe (atMay, headMay, readMay)
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
-import           BMX.Data.Data
 import           BMX.Data.Function
+import           BMX.Data.Page
 import           BMX.Data.Value
 
 import           P
@@ -58,7 +70,7 @@ import           P
 -- | The main evaluation monad. Allows local changes to the state,
 -- warnings, logs, and errors.
 newtype BMX m a = BMX { bmx :: EitherT EvalError (StateT (DList EvalOutput) (ReaderT (EvalState m) m)) a }
-  deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
+  deriving (Functor, Applicative, Alternative, Monad)
 
 instance MonadTrans BMX where
   lift = BMX . lift . lift . lift
@@ -88,22 +100,119 @@ err :: Monad m => EvalError -> BMX m a
 err = BMX . left
 
 -- -----------------------------------------------------------------------------
+-- User-facing abstract types for Helper, Partial and Decorator, plus
+-- constructor functions.
+
+-- | Functions that produce either a 'Value' or a 'Page', after accepting
+-- 'Value' arguments and accessing local state.
+newtype Helper m = Helper { unHelper :: HelperT (BMX m) }
+
+-- | Functions that can make arbitrary changes to the local state.
+newtype Decorator m = Decorator { unDecorator :: DecoratorT (BMX m) }
+
+-- | An object that produces a 'Page', for a 'Template' to render inline.
+newtype Partial m = Partial { unPartial :: PartialT (BMX m) }
+
+-- | Construct a regular 'Helper' out of a 'FunctionT' action. Regular
+-- helpers yield a 'Value'.
+helper :: Monad m => FunctionT (BMX m) Value -> Helper m
+helper = Helper . HelperT
+
+-- | Construct a block 'Helper' from a binary function that handles
+-- two 'Templates'. Block helpers yield a 'Page', typically (though
+-- not necessarily) by calling 'eval' on one of their 'Template'
+-- arguments.
+blockHelper :: Monad m => (Template -> Template -> FunctionT (BMX m) Page) -> Helper m
+blockHelper = Helper . BlockHelperT
+
+-- | Construct a regular 'Decorator' from a function accepting a continuation
+--  and yielding a 'Page'.
+--
+-- Decorators are specified in continuation-passing style. If the
+-- continuation is discarded, the the block will not be
+-- rendered. For example, this "abort" decorator will replace the
+-- surrounding Template with an empty 'Page':
+--
+-- > abort :: (Applicative m, Monad m) => Decorator m
+-- > abort = decorator $ \_k -> return mempty
+decorator :: Monad m => (BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
+decorator = Decorator . DecoratorT
+
+-- | Construct a block 'Decorator' from a function accepting a 'Template' block
+-- and a continuation, yielding a 'Page'.
+--
+-- As per 'decorator', all decorators are specified in continuation-passing style.
+-- If the continuation is discarded, the block will not be rendered.
+--
+-- The 'Template' argument can be used however one pleases. For
+-- example, this decorator replaces the whole block it was called in with
+-- its 'Template' argument if the variable @cool@ is not found:
+--
+-- > failoverCool :: (Applicative m, Monad m) => Decorator m
+-- > failoverCool = blockDecorator $ \body k ->
+-- >   liftBMX $ do
+-- >     mv <- lookupValue "cool"
+-- >     maybe (eval body) k mv
+--
+-- Running it on an empty context with this 'Template' will eradicate surrounding elements, returning only @" not cool! "@:
+--
+-- >>> ... abcde {{#* failoverCool }} not cool! {{/failoverCool}} ... {{abcde}}
+-- " not cool! "
+--
+-- See the implementation of 'BMX.Builtin.Decorators.inline' for another example.
+blockDecorator :: Monad m => (Template -> BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
+blockDecorator = Decorator . BlockDecoratorT
+
+-- | Construct a 'Partial' from some 'BMX' monadic action that yields a 'Page'.
+-- Most partials will be constructed with 'partialFromTemplate'. However,
+-- the following is a valid partial:
+--
+-- > emptyPage :: (Applicative m, Monad m) => Partial m
+-- > emptyPage = partial (return mempty)
+--
+-- Likewise, one could construct an IO partial if a good excuse could
+-- be procured.
+partial :: Monad m => BMX m Page -> Partial m
+partial = Partial . PartialT
+
+-- -----------------------------------------------------------------------------
+-- Data variables (special vars prefixed with an @)
+
+-- | Data variables. Helpers and Decorators can register data variables to
+-- be invoked by some 'Template'.
+--
+-- For example, the builtin helper 'each' sets @\@first@ and @\@last@ to @True@
+-- when on the first / last iteration.
+--
+-- Likewise, when invoking a partial block, the data variable @\@partial-block@
+-- contains the block argument (in the form of a 'Partial').
+data DataVar m
+  = DataValue Value
+  | DataPartial (Partial m)
+  | DataHelper (Helper m)
+  | DataDecorator (Decorator m)
+
+-- -----------------------------------------------------------------------------
 -- Evaluation state
 
--- | EvalState holds the evaluation environment, i.e. all bound helpers,
--- partials, decorators, data variables, and the context stack.
+-- | EvalState holds the rendering environment, i.e. all bound helpers,
+-- partials, decorators, data variables, and the current variable context.
+--
+-- The type parameter @m@ refers to the base monad for the registered
+-- helpers, partials and decorators. It is commonly 'Identity' or 'IO',
+-- though a Template can be rendered on top of any monad stack.
 data EvalState m = EvalState
   { -- | Stack of contexts, current on top.
     evalContext :: !([Context])
     -- | Special variables set by various things. Can be values, partials, etc.
     -- See http://handlebarsjs.com/reference.html.
-  , evalData :: !(Map Text (DataT (BMX m)))
+  , evalData :: !(Map Text (DataVar m))
     -- | All currently available helpers.
-  , evalHelpers :: !(Map Text (HelperT (BMX m)))
+  , evalHelpers :: !(Map Text (Helper m))
     -- | All currently available partials.
-  , evalPartials :: !(Map Text (PartialT (BMX m)))
+  , evalPartials :: !(Map Text (Partial m))
     -- | All currently available decorators.
-  , evalDecorators :: !(Map Text (DecoratorT (BMX m)))
+  , evalDecorators :: !(Map Text (Decorator m))
   }
 
 instance Monoid (EvalState m) where
@@ -134,13 +243,23 @@ modifyContext fun es =
         (x:xs) -> fun (Just x) : xs
   in es { evalContext = newCtxs }
 
--- | Push a new Context onto the stack for the duration of a single BMX action.
-withContext :: Monad m => Context -> BMX m a -> BMX m a
-withContext !c = local (pushContext c)
+-- | Push a new 'Context' onto the stack, then run some action in the 'BMX' monad.
+--
+-- The 'Context' is changed only for the duration of that action.
+withContext :: Monad m => Context -- ^ The new top-level 'Context'
+            -> BMX m a -- ^ The action to run with modified 'Context'
+            -> BMX m a
+withContext !c b = BMX $ local (pushContext c) (bmx b)
 
--- | Register a variable in the current context for one action.
-withVariable :: Monad m => Text -> Value -> BMX m a -> BMX m a
-withVariable key val k = shadowWarning >> local (modifyContext putVar) k
+-- | Register a variable in the current context, then run some action
+-- in the 'BMX' monad.
+--
+-- The 'Context' is only changed for the duration of that action.
+withVariable :: Monad m => Text -- ^ The name to be bound
+             -> Value -- ^ The value the binding should point to
+             -> BMX m a -- ^ The action to run with modified 'Context'
+             -> BMX m a
+withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx k))
   where
     shadowWarning = do
       mv <- lookupValue (PathID key Nothing)
@@ -149,9 +268,15 @@ withVariable key val k = shadowWarning >> local (modifyContext putVar) k
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
--- | Register a data variable in the current context for one action.
-withData :: Monad m => Text -> DataT (BMX m) -> BMX m a -> BMX m a
-withData key val k = shadowWarning >> local addData k
+-- | Register a data variable in the current context, then run some
+-- action in the 'BMX' monad.
+--
+-- The new 'DataVar' will persist only for the duration of that action.
+withData :: Monad m => Text -- ^ The name to be bound. Note that the @\@@ is implicit
+         -> DataVar m -- ^ The 'DataVar' the binding should point to
+         -> BMX m a -- ^ The action to run with modified environment
+         -> BMX m a
+withData key val k = shadowWarning >> BMX (local addData (bmx k))
   where
     shadowWarning = do
       md <- lookupData (DataPath (PathID key Nothing))
@@ -159,9 +284,15 @@ withData key val k = shadowWarning >> local addData k
     --
     addData es = es { evalData = M.insert key val (evalData es) }
 
--- | Register a partial in the current context for one action.
-withPartial :: Monad m => Text -> PartialT (BMX m) -> BMX m a -> BMX m a
-withPartial name p k = shadowWarning >> local addPartial k
+-- | Register a partial in the current context, then run some action
+-- in the 'BMX' monad.
+--
+-- The new 'Partial' will persist only for the duration of that action.
+withPartial :: Monad m => Text -- ^ The name to be bound
+            -> Partial m -- ^ The 'Partial' the binding should point to
+            -> BMX m a -- ^ The action to run with modified environment
+            -> BMX m a
+withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
   where
     shadowWarning = do
       mv <- lookupPartial (PathID name Nothing)
@@ -169,9 +300,10 @@ withPartial name p k = shadowWarning >> local addPartial k
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
--- | Look up a variable in the current context.
+-- | Look up a 'Value' in the current 'Context'.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
-lookupValue i = ask >>= (go i . evalContext)
+-- FIX replace Path with some public type - probably Text
+lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -208,26 +340,29 @@ lookupValue i = ask >>= (go i . evalContext)
       PathID _ r -> r
       PathSeg _ r -> r
 
--- | Look up a @data variable in the current context.
-lookupData :: Monad m => DataPath -> BMX m (Maybe (DataT (BMX m)))
-lookupData (DataPath p) = ask >>= \es ->
+-- | Look up a 'DataVar' in the current environment.
+lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
+lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
     PathSeg t Nothing -> return (M.lookup t d)
     _ -> return Nothing
 
-lookupHelper :: Monad m => Path -> BMX m (Maybe (HelperT (BMX m)))
-lookupHelper p = do
+-- | Look up a 'Helper' in the current environment.
+lookupHelper :: Monad m => Path -> BMX m (Maybe (Helper m))
+lookupHelper p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalHelpers st)
 
-lookupPartial :: Monad m => Path -> BMX m (Maybe (PartialT (BMX m)))
-lookupPartial p = do
+-- | Look up a 'Partial' in the current environment.
+lookupPartial :: Monad m => Path -> BMX m (Maybe (Partial m))
+lookupPartial p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalPartials st)
 
-lookupDecorator :: Monad m => Path -> BMX m (Maybe (DecoratorT (BMX m)))
-lookupDecorator p = do
+-- | Look up a 'Decorator' in the current environment.
+lookupDecorator :: Monad m => Path -> BMX m (Maybe (Decorator m))
+lookupDecorator p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalDecorators st)
 
@@ -246,6 +381,7 @@ data EvalError
   | ENoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
   | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
   | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
+  | Shadowing !Text -- ^ Attempt to redefine a variable
   | SomeError !Text -- ^ This case should be removed before BMX ships.
 
 instance Monoid EvalError where
@@ -277,6 +413,7 @@ renderEvalError = \case
   ENoSuchValue t -> "Value " <> t <> " is not defined"
   ParserError t -> "Parser error: " <> t
   Unrenderable t -> "Invalid mustache: cannot render " <> t
+  Shadowing t -> "The local definition of " <> t <> " shadows an existing binding"
   SomeError t -> "Error: " <> t
 
 renderEvalOutput :: EvalOutput -> Text

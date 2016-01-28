@@ -1,19 +1,20 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK hide #-}
 module BMX.Eval (
     eval
   ) where
 
-import           Control.Monad.Reader hiding (mapM)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Data
-import           BMX.Function
+import           BMX.Internal.Function
 
 import           P
 
+-- | Evaluate a 'Template' in the current 'BMX' environment, yielding a 'Page'.
 eval :: (Applicative m, Monad m) => Template -> BMX m Page
 eval (Template ss) = foldDecorators ss (concatMapM evalStmt ss)
 
@@ -96,7 +97,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     help <- helperFromLit l
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral l)))
-              (runBlockHelper [] bp block inverse)
+              (runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -105,7 +106,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     args <- mapM evalExpr p
     body <- maybe
               (err (NoSuchBlockHelper (renderLiteral h)))
-              (runBlockHelper args bp block inverse)
+              (runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -145,7 +146,7 @@ evalPartialBlock l1 r1 l2 r2 e ee hash b =
   -- Call evalPartial with custom error function (const (eval b)) - failover
   withData "partial-block" blockData (evalPartial l1 r1 l2 r2 e ee hash failOver)
   where
-    blockData = DPartial (Partial (eval b))
+    blockData = DataPartial (partial (eval b))
     failOver = const (eval b)
 
 -- | Evaluate a raw block.
@@ -209,7 +210,7 @@ partialFromLit = \case
   DataL p -> do
     d <- lookupData p
     return $ case d of
-      Just (DPartial part) -> Just part
+      Just (DataPartial part) -> Just part
       _ -> Nothing
   _ -> err (TypeError "partial" "literal")
 
@@ -232,8 +233,11 @@ valueFromLit = \case
   where
     val = return . Just
     dataVal = \case
-      (DValue v) -> Just v
+      (DataValue v) -> Just v
       _ -> Nothing
+
+toParams :: BlockParams -> [Param]
+toParams (BlockParams ps) = fmap (Param . renderLiteral) ps
 
 -- -----------------------------------------------------------------------------
 -- Util

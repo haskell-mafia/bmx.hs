@@ -35,27 +35,28 @@ library
                        src
 
   exposed-modules:
-                       Paths_ambiata_bmx
                        BMX
                        BMX.Builtin
                        BMX.Builtin.Decorators
                        BMX.Builtin.Helpers
-                       BMX.Data
-                       BMX.Eval
                        BMX.Function
-                       BMX.Lexer
-                       BMX.Parser
+                       BMX.Internal
 
   other-modules:
+                       BMX.Eval
+                       BMX.Lexer
+                       BMX.Parser
+                       BMX.Data
                        BMX.Data.AST
-                       BMX.Data.Data
+                       BMX.Data.Error
                        BMX.Data.Eval
                        BMX.Data.Format
                        BMX.Data.Function
                        BMX.Data.Page
                        BMX.Data.Token                       
                        BMX.Data.Value
-
+                       BMX.Internal.Function
+                       Paths_ambiata_bmx
 
 executable bmx
   ghc-options:      -Wall -threaded -O2
@@ -64,7 +65,6 @@ executable bmx
                      , ambiata-p
                      , ambiata-bmx
                      , text
-                     , containers
 
   hs-source-dirs:      gen
 
@@ -96,7 +96,7 @@ test-suite test
                      , ambiata-disorder-core
                      , ambiata-disorder-corpus
                      , ambiata-p
-                     , QuickCheck
+                     , QuickCheck                      >= 2.8.2 && < 2.9
                      , quickcheck-instances            == 0.3.*
                      , text
                      , attoparsec

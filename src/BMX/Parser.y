@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_HADDOCK hide #-}
 module BMX.Parser (ParseError(..), parse) where
 
 import           Data.Either
@@ -300,9 +301,6 @@ simple_id :: { Literal }:
     ident                          { PathL (PathID $1 Nothing) }
 
 {
-
-newtype ParseError = ParseError { renderParseError :: Text }
-  deriving (Eq, Show)
 
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 

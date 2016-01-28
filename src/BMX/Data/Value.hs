@@ -6,6 +6,8 @@ module BMX.Data.Value (
     Context (..)
   , Value (..)
   , Param (..)
+  , contextFromList
+  , contextToList
   , renderValue
   , renderValueType
   , truthy
@@ -39,15 +41,13 @@ data Value
 newtype Param = Param { renderParam :: Text }
   deriving (Eq, Show)
 
-renderValue :: Value -> Text
-renderValue = \case
-  StringV t -> t
-  IntV i -> T.pack (show i)
-  BoolV b -> if b then "true" else "false"
-  NullV -> "null"
-  UndefinedV -> "undefined"
-  ContextV _ -> "(object)"
-  ListV _ -> "(list)"
+-- | Construct an association list from a @Context@.
+contextToList :: Context -> [(Text, Value)]
+contextToList (Context c) = M.toList c
+
+-- | Construct a @Context@ from an association list.
+contextFromList :: [(Text, Value)] -> Context
+contextFromList = Context . M.fromList
 
 truthy :: Value -> Bool
 truthy = \case
@@ -61,6 +61,16 @@ truthy = \case
 
 falsey :: Value -> Bool
 falsey = not . truthy
+
+renderValue :: Value -> Text
+renderValue = \case
+  StringV t -> t
+  IntV i -> T.pack (show i)
+  BoolV b -> if b then "true" else "false"
+  NullV -> "null"
+  UndefinedV -> "undefined"
+  ContextV _ -> "(object)"
+  ListV _ -> "(list)"
 
 renderValueType :: Value -> Text
 renderValueType = \case

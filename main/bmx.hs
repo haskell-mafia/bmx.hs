@@ -2,14 +2,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import qualified Data.Map.Strict as M
 import qualified Data.Text.IO as T
 import           System.IO
 
 import           BMX
-import           BMX.Data
-import           BMX.Eval
-import           BMX.Parser
+import           BMX.Internal
 
 import           P
 
@@ -17,19 +14,23 @@ main :: IO ()
 main = do
   inp <- T.getContents
   let parsed = templateFromText inp
-  either (T.putStrLn . renderParseError) print parsed
+  either (T.putStrLn . renderBMXError) print parsed
   let scream = T.hPutStrLn stderr
-      drawResult (epage, er) = do
-        either (scream . renderEvalError) (T.putStrLn . renderPage) epage
-        mapM_ (scream . renderEvalOutput) er
+      drawResult epage =
+        either (scream . renderBMXError) (T.putStrLn . renderPage) epage
   either (const $ return ())
-         (drawResult . renderTemplate testContext)
+         (drawResult . renderTemplate testState)
          parsed
 
+testState :: (Applicative m, Monad m) => BMXState m
+testState = defaultState
+  `usingContext` testContext
+  `usingPartials` [("authorid", testPartial)]
+
 testContext :: Context
-testContext = Context $ M.fromList [
+testContext = contextFromList [
     ("title", StringV "My First Blog Post!")
-  , ("author", ContextV . Context $ M.fromList [
+  , ("author", ContextV . contextFromList $ [
                    ("id", IntV 47)
                  , ("name", StringV "Yehuda Katz")
                  ])
@@ -38,9 +39,8 @@ testContext = Context $ M.fromList [
   , ("component", StringV "authorid")
   ]
 
--- FIX temporary test value
-testPartial :: (Applicative m, Monad m) => Partial m
-testPartial = Partial . eval $
+testPartial :: Template
+testPartial =
   Template
     [ ContentStmt "The author's name is "
     , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))

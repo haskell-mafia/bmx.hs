@@ -4,21 +4,17 @@
 module BMX.Builtin.Helpers where
 
 import           Data.List (zipWith)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Data
-import           BMX.Eval
 import           BMX.Function
 
 import           P hiding (log, unless)
 
-
 -- | The default collection of builtins.
-builtinHelpers :: (Applicative m, Monad m) => Map Text (Helper m)
-builtinHelpers = M.fromList [
+builtinHelpers :: (Applicative m, Monad m) => [(Text, Helper m)]
+builtinHelpers = [
     ("noop", noop)
   , ("if", iff)
   , ("unless", unless)
@@ -28,27 +24,26 @@ builtinHelpers = M.fromList [
   , ("each", each)
   ]
 
-
 -- | The "noop" block helper. Renders the main block.
 noop :: (Applicative m, Monad m) => Helper m
-noop = BlockHelper $ \b _ -> liftBMX (eval b)
+noop = blockHelper $ \b _ -> liftBMX (eval b)
 
 -- | The "if" block helper. Renders the main block if the argument is truthy.
 -- Otherwise, it renders the inverse block.
 iff :: (Applicative m, Monad m) => Helper m
-iff = BlockHelper $ \thenp elsep -> do
+iff = blockHelper $ \thenp elsep -> do
   v <- value
   liftBMX $ if truthy v then eval thenp else eval elsep
 
 -- | The "unless" block helper. The opposite of "if".
 unless :: (Applicative m, Monad m) => Helper m
-unless = BlockHelper $ \thenp elsep -> do
+unless = blockHelper $ \thenp elsep -> do
   v <- value
   liftBMX $ if truthy v then eval elsep else eval thenp
 
 -- | The "with" block helper. Accept a Context as argument.
 with :: (Applicative m, Monad m) => Helper m
-with = BlockHelper $ \thenp elsep -> do
+with = blockHelper $ \thenp elsep -> do
   ctx <- optional context
   liftBMX $ maybe
     (eval elsep)
@@ -57,7 +52,7 @@ with = BlockHelper $ \thenp elsep -> do
 
 -- | The "log" helper. Writes every argument to the log in a single line.
 log :: (Applicative m, Monad m) => Helper m
-log = Helper $ do
+log = helper $ do
   args <- many value
   liftBMX $ do
     logs (T.unwords $ fmap renderValue args)
@@ -66,7 +61,7 @@ log = Helper $ do
 -- | The "lookup" helper. Takes a context and a string, and looks up a
 -- value in a context. Returns @undefined@ when it doesn't exist.
 lookup :: (Applicative m, Monad m) => Helper m
-lookup = Helper $ do
+lookup = helper $ do
   (ContextV ctx) <- context
   (StringV str) <- string
   liftBMX $ do
@@ -83,17 +78,17 @@ lookup = Helper $ do
 -- If block parameters are supplied, we also bind the first parameter to the
 -- value in each loop, and the second parameter to the loop index.
 each :: (Applicative m, Monad m) => Helper m
-each = BlockHelper $ \thenp elsep -> do
+each = blockHelper $ \thenp elsep -> do
   iter <- list <|> context
   par1 <- optional param -- block param: name for current item (list), name for key (ctx)
   par2 <- optional param -- block param: name for current loop idx (list), name for val (ctx)
-  -- This is the worst, mostly because of special variables.
+  -- This code is the worst, mostly because of special variables.
   let go = case iter of
         ContextV c -> fmap fold (sequence (eachMap c))
         ListV l -> fmap fold (sequence (eachList l))
         v -> err (TypeError "context or list" (renderValueType v))
       -- Separate iteration cases for context and list
-      eachMap (Context c) = indices 0 (fmap stepKV (M.toList c))
+      eachMap c = indices 0 (fmap stepKV (contextToList c))
       eachList l = zipWith listIdx [0..] (indices 0 (fmap step l))
       -- Apply indices, first and last markers to each action
       indices 0 (k:[]) = [(index 0 . frst . last) k]
@@ -102,12 +97,12 @@ each = BlockHelper $ \thenp elsep -> do
       indices n (k:[]) = [index n (last k)]
       indices _ [] = []
       -- Register various special variables
-      index i k = withData "index" (DValue (IntV i)) k
-      stepKV (k,v) = withData "key" (DValue (StringV k))
+      index i k = withData "index" (DataValue (IntV i)) k
+      stepKV (k,v) = withData "key" (DataValue (StringV k))
         . withName par1 (StringV k) . withName par2 v . withVariable "this" v $ eval thenp
       step v = withVariable "this" v . withName par1 v $ eval thenp
-      frst = withData "first" (DValue (BoolV True))
-      last = withData "last" (DValue (BoolV True))
+      frst = withData "first" (DataValue (BoolV True))
+      last = withData "last" (DataValue (BoolV True))
       -- Register blockparams if they were supplied
       withName Nothing _ k = k
       withName (Just (Param n)) v k = withVariable n v k
