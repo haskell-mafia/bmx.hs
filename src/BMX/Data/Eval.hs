@@ -34,7 +34,7 @@ module BMX.Data.Eval (
   -- * Evaluation monad
   , BMX (..)
   , runBMX
-  , runBMXIO
+  , runBMXT
   , err
   ) where
 
@@ -70,14 +70,11 @@ instance MonadIO m => MonadIO (BMX m) where
 
 -- | Run a pure BMX action
 runBMX :: EvalState Identity -> BMX Identity a -> Either EvalError a
-runBMX st = runIdentity
-  . (`runReaderT` st)
-  . runEitherT
-  . bmx
+runBMX st = runIdentity . runBMXT st
 
--- | Run a BMX action in an IO monad
-runBMXIO :: MonadIO m => EvalState m -> BMX m a -> m (Either EvalError a)
-runBMXIO st = (`runReaderT` st) . runEitherT . bmx
+-- | Run a BMX action in some monad stack
+runBMXT :: Monad m => EvalState m -> BMX m a -> m (Either EvalError a)
+runBMXT st = (`runReaderT` st) . runEitherT . bmx
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left

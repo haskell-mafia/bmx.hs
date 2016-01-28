@@ -14,7 +14,6 @@ import           BMX.Function
 
 import           P hiding (traceM, log)
 
-{-# WARNING debugHelpers "Do not use 'debugHelpers' in production code" #-}
 debugHelpers :: (Applicative m, MonadIO m) => [(Text, Helper m)]
 debugHelpers = [
     ("log", logIO)
