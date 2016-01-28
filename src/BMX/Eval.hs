@@ -96,7 +96,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
   Lit l -> do
     help <- helperFromLit l
     body <- maybe
-              (err (NoSuchBlockHelper (renderLiteral l)))
+              (err (NoSuchHelper (renderLiteral l)))
               (runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
@@ -105,7 +105,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     help <- helperFromLit h
     args <- mapM evalExpr p
     body <- maybe
-              (err (NoSuchBlockHelper (renderLiteral h)))
+              (err (NoSuchHelper (renderLiteral h)))
               (runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used

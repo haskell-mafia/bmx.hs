@@ -220,7 +220,7 @@ templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
 renderTemplate :: BMXState Identity -> Template -> Either BMXError Page
 renderTemplate bst t = do
   st <- packState bst
-  bimap BMXEvalError id $ fst (runBMX st (eval t))
+  bimap BMXEvalError id $ runBMX st (eval t)
 
 -- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
 --
@@ -230,7 +230,7 @@ renderTemplateIO :: (Applicative m, MonadIO m) => BMXState m -> Template -> m (E
 renderTemplateIO bst t = either (return . Left) runIt (packState bst)
   where runIt es = do
           ep <- runBMXIO es (eval t)
-          return (bimap BMXEvalError id . fst $ ep)
+          return (bimap BMXEvalError id ep)
 
 -- | Pack the association lists from 'BMXState' into the maps of 'EvalState',
 -- throwing errors whenever shadowing is encountered.
