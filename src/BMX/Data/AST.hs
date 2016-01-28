@@ -32,6 +32,10 @@ import           P
 newtype Template = Template [Stmt]
   deriving (Show, Eq)
 
+instance Monoid Template where
+  mempty = Template mempty
+  mappend (Template a) (Template b) = Template (a <> b)
+
 data Stmt
   = Mustache Fmt Expr
   | MustacheUnescaped Fmt Expr

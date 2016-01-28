@@ -17,6 +17,8 @@ module BMX.Function (
   -- * Partials
   , Partial
   , partial
+  -- * Data variables
+  , DataVar (..)
   -- * Argument parsers
   -- $vaarg
   , FunctionT
@@ -32,8 +34,6 @@ module BMX.Function (
   , BMX
   , eval
   , liftBMX
-  -- ** Data variables
-  , DataVar (..)
   -- ** Changing stuff
   , withVariable
   , withContext
@@ -99,8 +99,8 @@ import           BMX.Internal.Function
 -- more complicated functions.
 --
 -- Once all argument and block parameter parsing is finished, we may
--- wish to query the 'EvalState' or evaluate one of our block
--- arguments. The functions to do so are all of type 'BMX' @m a@, so
+-- wish to access the local state or evaluate one of our block
+-- arguments. The functions to do so are all of type @BMX m a@, so
 -- we need to lift them into 'FunctionT' with 'liftBMX'.
 --
 -- As an example, this 'blockHelper' accepts 10 arguments that are

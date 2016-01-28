@@ -104,16 +104,16 @@ err = BMX . left
 -- constructor functions.
 
 -- | Functions that produce either a 'Value' or a 'Page', after accepting
--- 'Value' arguments and accessing the 'EvalState'.
+-- 'Value' arguments and accessing local state.
 newtype Helper m = Helper { unHelper :: HelperT (BMX m) }
 
--- | Functions that can make arbitrary changes to the 'EvalState'.
+-- | Functions that can make arbitrary changes to the local state.
 newtype Decorator m = Decorator { unDecorator :: DecoratorT (BMX m) }
 
 -- | An object that produces a 'Page', for a 'Template' to render inline.
 newtype Partial m = Partial { unPartial :: PartialT (BMX m) }
 
--- | Construct a regular 'Helper' out of a 'BMX' action. Regular
+-- | Construct a regular 'Helper' out of a 'FunctionT' action. Regular
 -- helpers yield a 'Value'.
 helper :: Monad m => FunctionT (BMX m) Value -> Helper m
 helper = Helper . HelperT
@@ -163,7 +163,7 @@ decorator = Decorator . DecoratorT
 blockDecorator :: Monad m => (Template -> BMX m Page -> FunctionT (BMX m) Page) -> Decorator m
 blockDecorator = Decorator . BlockDecoratorT
 
--- | Construct a 'Partial' from some 'BMX' action yielding a 'Page'.
+-- | Construct a 'Partial' from some 'BMX' monadic action that yields a 'Page'.
 -- Most partials will be constructed with 'partialFromTemplate'. However,
 -- the following is a valid partial:
 --
@@ -243,12 +243,22 @@ modifyContext fun es =
         (x:xs) -> fun (Just x) : xs
   in es { evalContext = newCtxs }
 
--- | Push a new Context onto the stack for the duration of a single BMX action.
-withContext :: Monad m => Context -> BMX m a -> BMX m a
+-- | Push a new 'Context' onto the stack, then run some action in the 'BMX' monad.
+--
+-- The 'Context' is changed only for the duration of that action.
+withContext :: Monad m => Context -- ^ The new top-level 'Context'
+            -> BMX m a -- ^ The action to run with modified 'Context'
+            -> BMX m a
 withContext !c b = BMX $ local (pushContext c) (bmx b)
 
--- | Register a variable in the current context for one action.
-withVariable :: Monad m => Text -> Value -> BMX m a -> BMX m a
+-- | Register a variable in the current context, then run some action
+-- in the 'BMX' monad.
+--
+-- The 'Context' is only changed for the duration of that action.
+withVariable :: Monad m => Text -- ^ The name to be bound
+             -> Value -- ^ The value the binding should point to
+             -> BMX m a -- ^ The action to run with modified 'Context'
+             -> BMX m a
 withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx k))
   where
     shadowWarning = do
@@ -258,8 +268,14 @@ withVariable key val k = shadowWarning >> BMX (local (modifyContext putVar) (bmx
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
 
--- | Register a data variable in the current context for one action.
-withData :: Monad m => Text -> DataVar m -> BMX m a -> BMX m a
+-- | Register a data variable in the current context, then run some
+-- action in the 'BMX' monad.
+--
+-- The new 'DataVar' will persist only for the duration of that action.
+withData :: Monad m => Text -- ^ The name to be bound. Note that the @\@@ is implicit
+         -> DataVar m -- ^ The 'DataVar' the binding should point to
+         -> BMX m a -- ^ The action to run with modified environment
+         -> BMX m a
 withData key val k = shadowWarning >> BMX (local addData (bmx k))
   where
     shadowWarning = do
@@ -268,8 +284,14 @@ withData key val k = shadowWarning >> BMX (local addData (bmx k))
     --
     addData es = es { evalData = M.insert key val (evalData es) }
 
--- | Register a partial in the current context for one action.
-withPartial :: Monad m => Text -> Partial m -> BMX m a -> BMX m a
+-- | Register a partial in the current context, then run some action
+-- in the 'BMX' monad.
+--
+-- The new 'Partial' will persist only for the duration of that action.
+withPartial :: Monad m => Text -- ^ The name to be bound
+            -> Partial m -- ^ The 'Partial' the binding should point to
+            -> BMX m a -- ^ The action to run with modified environment
+            -> BMX m a
 withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
   where
     shadowWarning = do
@@ -278,7 +300,7 @@ withPartial name p k = shadowWarning >> BMX (local addPartial (bmx k))
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
--- | Look up a variable in the current context.
+-- | Look up a 'Value' in the current 'Context'.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
 -- FIX replace Path with some public type - probably Text
 lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
@@ -318,7 +340,7 @@ lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
       PathID _ r -> r
       PathSeg _ r -> r
 
--- | Look up a @\@data@ variable in the current context.
+-- | Look up a 'DataVar' in the current environment.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
 lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
   let d = evalData es in case p of
@@ -326,16 +348,19 @@ lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
     PathSeg t Nothing -> return (M.lookup t d)
     _ -> return Nothing
 
+-- | Look up a 'Helper' in the current environment.
 lookupHelper :: Monad m => Path -> BMX m (Maybe (Helper m))
 lookupHelper p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalHelpers st)
 
+-- | Look up a 'Partial' in the current environment.
 lookupPartial :: Monad m => Path -> BMX m (Maybe (Partial m))
 lookupPartial p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalPartials st)
 
+-- | Look up a 'Decorator' in the current environment.
 lookupDecorator :: Monad m => Path -> BMX m (Maybe (Decorator m))
 lookupDecorator p = BMX $ do
   st <- ask
@@ -356,6 +381,7 @@ data EvalError
   | ENoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
   | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
   | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
+  | Shadowing !Text -- ^ Attempt to redefine a variable
   | SomeError !Text -- ^ This case should be removed before BMX ships.
 
 instance Monoid EvalError where
@@ -387,6 +413,7 @@ renderEvalError = \case
   ENoSuchValue t -> "Value " <> t <> " is not defined"
   ParserError t -> "Parser error: " <> t
   Unrenderable t -> "Invalid mustache: cannot render " <> t
+  Shadowing t -> "The local definition of " <> t <> " shadows an existing binding"
   SomeError t -> "Error: " <> t
 
 renderEvalOutput :: EvalOutput -> Text

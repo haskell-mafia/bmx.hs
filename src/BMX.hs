@@ -95,10 +95,10 @@ import           P
 
 -- $rendering
 --
--- Apply a 'Template' to some 'EvalState' to produce a 'Page', a
+-- Apply a 'Template' to some 'BMXState' to produce a 'Page', a
 -- fully-evaluated document that is ready to print.
 --
--- Build up an 'EvalState' by using 'mempty' or
+-- Build up an 'BMXState' by using 'mempty' or
 -- 'defaultState' as a base, and then applying 'usingContext',
 -- 'usingPartials', 'usingHelpers', and 'usingDecorators' to supply
 -- custom functions and data as needed.
@@ -113,7 +113,7 @@ import           P
 --
 -- A 'Context' is a set of mappings from 'Text' to 'Value', i.e. local
 -- variable bindings. The current 'Context' is stored in the
--- 'EvalState', and is used for all variable lookups. The initial
+-- 'BMXState', and is used for all variable lookups. The initial
 -- context can be set via 'usingContext'.
 --
 -- Values can be integers, strings, booleans, undefined, lists, or
@@ -123,7 +123,7 @@ import           P
 --
 -- A 'Partial' produces a 'Page' that another 'Template' can render
 -- inline. The partial has full access to the local
--- 'EvalState' when run.
+-- 'BMXState' when run.
 --
 -- Most partials will be constructed from 'Template' values using
 -- 'partialFromTemplate'. However, the type is general enough to admit
@@ -150,7 +150,7 @@ import           P
 -- $decorators
 --
 -- A 'Decorator' is a function that can make arbitrary changes to the
--- 'EvalState'. The changes made will only affect the surrounding
+-- 'BMXState'. The changes made will only affect the surrounding
 -- block.  Decorators are preprocessed before their containing block
 -- is rendered.
 --
@@ -159,6 +159,13 @@ import           P
 -- See <BMX-Function.html BMX.Function> for details on implementing
 -- custom decorators.
 
+-- | BMXState holds the initial rendering environment, i.e. all bound helpers,
+-- partials, decorators, and the current variable context.
+--
+-- The type parameter @m@ refers to the base monad for the registered
+-- helpers, partials and decorators. It is commonly 'Identity' or
+-- 'IO', though it should be possible to render a 'Template' on top of
+-- any monad stack.
 data BMXState m = BMXState
   { bmxContext :: Context
   , bmxPartials :: [(Text, Partial m)]
@@ -184,19 +191,19 @@ defaultState = mempty {
   , bmxDecorators = builtinDecorators
   }
 
--- | Set the initial context in an 'EvalState'.
+-- | Set the initial context in an 'BMXState'.
 usingContext :: (Applicative m, Monad m) => BMXState m -> Context -> BMXState m
 usingContext st c = st { bmxContext = c }
 
--- | Add a named collection of templates to the 'EvalState' as partials.
+-- | Add a named collection of templates to the 'BMXState' as partials.
 usingPartials :: (Applicative m, Monad m) => BMXState m -> [(Text, Template)] -> BMXState m
 usingPartials st ps = st { bmxPartials = (fmap . fmap) partialFromTemplate ps <> bmxPartials st }
 
--- | Add a named collection of helpers to the 'EvalState'.
+-- | Add a named collection of helpers to the 'BMXState'.
 usingHelpers :: (Applicative m, Monad m) => BMXState m -> [(Text, Helper m)] -> BMXState m
 usingHelpers st hs = st { bmxHelpers = hs <> bmxHelpers st }
 
--- | Add a named collection of decorators to the 'EvalState'.
+-- | Add a named collection of decorators to the 'BMXState'.
 usingDecorators :: (Applicative m, Monad m) => BMXState m -> [(Text, Decorator m)] -> BMXState m
 usingDecorators st ds = st { bmxDecorators = ds <> bmxDecorators st }
 
@@ -206,7 +213,7 @@ templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
   where
     convert = Left . BMXLexError
 
--- | Apply a 'Template' to some 'EvalState', producing a 'Page'.
+-- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
 --
 -- All helpers, partials and decorators must be pure. Use 'renderTemplateIO'
 -- if IO helpers are required.
@@ -215,7 +222,7 @@ renderTemplate bst t = do
   st <- packState bst
   bimap BMXEvalError id $ fst (runBMX st (eval t))
 
--- | Apply a 'Template' to some 'EvalState', producing a 'Page'.
+-- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
 --
 -- Helpers, partials and decorators may involve IO. Use @renderTemplate@ if
 -- no IO helpers are to be invoked.
@@ -245,7 +252,7 @@ packState bst = do
 mapUnique :: [(Text, a)] -> Either BMXError (Map Text a)
 mapUnique = foldM foldFun M.empty
   where foldFun m (k, v)  = if M.member k m
-          then Left (BMXEvalError (SomeError "shadowing - i need my own error!"))
+          then Left (BMXEvalError (Shadowing k))
           else Right (M.insert k v m)
 
 -- | Produce a 'Partial' from an ordinary 'Template'.
