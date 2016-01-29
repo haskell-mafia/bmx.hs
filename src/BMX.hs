@@ -218,7 +218,7 @@ usingDecorators st ds = st { bmxDecorators = ds <> bmxDecorators st }
 
 -- | Lex and parse a 'Template' from some 'Text'.
 templateFromText :: Text -> Either BMXError Template
-templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
+templateFromText = either convert (first BMXParseError . parse) . tokenise
   where
     convert = Left . BMXLexError
 
@@ -229,7 +229,7 @@ templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
 renderTemplate :: BMXState Identity -> Template -> Either BMXError Page
 renderTemplate bst t = do
   st <- packState bst
-  bimap BMXEvalError id $ runBMX st (eval t)
+  first BMXEvalError $ runBMX st (eval t)
 
 -- | Apply a 'Template' to a 'BMXState' in some Monad stack, producing
 -- a 'Page'.
@@ -237,7 +237,7 @@ renderTemplateM :: (Applicative m, Monad m) => BMXState m -> Template -> m (Eith
 renderTemplateM bst t = either (return . Left) runIt (packState bst)
   where runIt es = do
           ep <- runBMXT es (eval t)
-          return (bimap BMXEvalError id ep)
+          return (first BMXEvalError ep)
 
 -- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
 --
