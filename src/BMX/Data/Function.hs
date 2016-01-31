@@ -46,6 +46,9 @@ newtype FunctionT m a = FunctionT { fun :: EitherT FunctionError (StateT Functio
 instance MonadTrans FunctionT where
   lift = FunctionT . lift . lift
 
+instance MonadIO m => MonadIO (FunctionT m) where
+  liftIO = FunctionT . liftIO
+
 instance (Applicative m, Monad m) => Alternative (FunctionT m) where
   empty = FunctionT (left EOF)
   a <|> b = do -- try a <|> b

@@ -25,8 +25,12 @@ module BMX (
   -- $rendering
   , renderTemplate
   , renderTemplateIO
+  , renderTemplateM
   , BMXState
   , defaultState
+
+  -- * Debugging a Template
+  , debugTemplateIO
 
   -- * Errors
   , BMXError (..)
@@ -57,10 +61,10 @@ module BMX (
   ) where
 
 import           Control.Monad.Identity (Identity)
-import           Control.Monad.IO.Class (MonadIO)
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
+import           System.IO (IO)
 
 import           BMX.Builtin
 import           BMX.Data
@@ -75,9 +79,14 @@ import           P
 -- BMX is considerably stricter than Handlebars. A number
 -- of error-prone constructs that Handlebars accepts will result in a 'BMXError':
 --
--- * Any attempt (mustache or 'Helper') to print @undefined@, @null@,
--- a list, or a 'Context' will result in an error.
--- * TBD
+-- * Any attempt to print @undefined@, @null@, a list, or a 'Context'
+-- will result in an error.
+--
+-- * Any attempt to redefine (shadow) a
+-- variable, helper, partial, decorator, or data variable will result
+-- in an error.
+--
+-- * To Be Documented
 
 
 -- $templates BMX templates are syntactically compatible with
@@ -209,7 +218,7 @@ usingDecorators st ds = st { bmxDecorators = ds <> bmxDecorators st }
 
 -- | Lex and parse a 'Template' from some 'Text'.
 templateFromText :: Text -> Either BMXError Template
-templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
+templateFromText = either convert (first BMXParseError . parse) . tokenise
   where
     convert = Left . BMXLexError
 
@@ -220,17 +229,31 @@ templateFromText = either convert (bimap BMXParseError id . parse) . tokenise
 renderTemplate :: BMXState Identity -> Template -> Either BMXError Page
 renderTemplate bst t = do
   st <- packState bst
-  bimap BMXEvalError id $ fst (runBMX st (eval t))
+  first BMXEvalError $ runBMX st (eval t)
+
+-- | Apply a 'Template' to a 'BMXState' in some Monad stack, producing
+-- a 'Page'.
+renderTemplateM :: (Applicative m, Monad m) => BMXState m -> Template -> m (Either BMXError Page)
+renderTemplateM bst t = either (return . Left) runIt (packState bst)
+  where runIt es = do
+          ep <- runBMXT es (eval t)
+          return (first BMXEvalError ep)
 
 -- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
 --
 -- Helpers, partials and decorators may involve IO. Use @renderTemplate@ if
 -- no IO helpers are to be invoked.
-renderTemplateIO :: (Applicative m, MonadIO m) => BMXState m -> Template -> m (Either BMXError Page)
-renderTemplateIO bst t = either (return . Left) runIt (packState bst)
-  where runIt es = do
-          ep <- runBMXIO es (eval t)
-          return (bimap BMXEvalError id . fst $ ep)
+renderTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
+renderTemplateIO bst = renderTemplateM bst
+
+{-# WARNING debugTemplateIO "Do not use 'debugTemplateIO' in production code" #-}
+-- | Evaluate a 'Template' against some 'BMXState' with debugging helpers enabled.
+--
+-- Debugging helpers are enumerated in 'debugHelpers'.
+--
+-- Debugging helpers may perform IO. Do not use this in production.
+debugTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
+debugTemplateIO st = renderTemplateIO (st `usingHelpers` debugHelpers)
 
 -- | Pack the association lists from 'BMXState' into the maps of 'EvalState',
 -- throwing errors whenever shadowing is encountered.

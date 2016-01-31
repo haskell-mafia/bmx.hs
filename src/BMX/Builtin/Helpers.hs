@@ -5,7 +5,6 @@ module BMX.Builtin.Helpers where
 
 import           Data.List (zipWith)
 import           Data.Text (Text)
-import qualified Data.Text as T
 
 import           BMX.Data
 import           BMX.Function
@@ -19,7 +18,6 @@ builtinHelpers = [
   , ("if", iff)
   , ("unless", unless)
   , ("with", with)
-  , ("log", log)
   , ("lookup", lookup)
   , ("each", each)
   ]
@@ -49,14 +47,6 @@ with = blockHelper $ \thenp elsep -> do
     (eval elsep)
     (\(ContextV c) -> withContext c (eval thenp))
     ctx
-
--- | The "log" helper. Writes every argument to the log in a single line.
-log :: (Applicative m, Monad m) => Helper m
-log = helper $ do
-  args <- many value
-  liftBMX $ do
-    logs (T.unwords $ fmap renderValue args)
-    return (StringV "")
 
 -- | The "lookup" helper. Takes a context and a string, and looks up a
 -- value in a context. Returns @undefined@ when it doesn't exist.

@@ -71,7 +71,7 @@ evalExpr' b l p _hash = do
       mv <- valueFromLit ll
       -- Refuse to coerce - fail if not found.
       -- Could rely on evalMustache's 'render' check, but this provides a better error
-      maybe (err (ENoSuchValue (renderLiteral ll))) return mv
+      maybe (err (NoSuchValue (renderLiteral ll))) return mv
 
 evalMustache :: Monad m => Format -> Format -> Expr -> BMX m Page
 evalMustache l r = \case
@@ -96,7 +96,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
   Lit l -> do
     help <- helperFromLit l
     body <- maybe
-              (err (NoSuchBlockHelper (renderLiteral l)))
+              (err (NoSuchHelper (renderLiteral l)))
               (runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
@@ -105,7 +105,7 @@ evalBlock l1 r1 l2 r2 e bp block inverse = case e of
     help <- helperFromLit h
     args <- mapM evalExpr p
     body <- maybe
-              (err (NoSuchBlockHelper (renderLiteral h)))
+              (err (NoSuchHelper (renderLiteral h)))
               (runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used
@@ -190,7 +190,7 @@ foldHashPairs hps k = foldl' foldFun k hps
       withVariable key val' k'
     foldFun k' (HashPair key (Lit l)) = do
       val' <- valueFromLit l
-      maybe (err (ENoSuchValue (renderLiteral l)))
+      maybe (err (NoSuchValue (renderLiteral l)))
             (\v -> withVariable key v k')
             val'
 
