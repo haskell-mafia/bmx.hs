@@ -32,7 +32,6 @@ data Value
   = StringV Text
   | IntV Integer
   | BoolV Bool
-  | NullV
   | UndefinedV
   | ContextV Context
   | ListV [Value]
@@ -52,7 +51,6 @@ contextFromList = Context . M.fromList
 truthy :: Value -> Bool
 truthy = \case
   BoolV b -> b
-  NullV -> False
   UndefinedV -> False
   StringV t -> not (T.null t)
   IntV i -> i /= 0
@@ -67,7 +65,6 @@ renderValue = \case
   StringV t -> t
   IntV i -> T.pack (show i)
   BoolV b -> if b then "true" else "false"
-  NullV -> "null"
   UndefinedV -> "undefined"
   ContextV _ -> "(object)"
   ListV _ -> "(list)"
@@ -77,7 +74,6 @@ renderValueType = \case
   StringV _ -> "string"
   IntV _ -> "number"
   BoolV _ -> "boolean"
-  NullV -> "null"
   UndefinedV -> "undefined"
   ContextV _ -> "context"
   ListV _ -> "list"

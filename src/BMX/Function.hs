@@ -26,7 +26,6 @@ module BMX.Function (
   , string
   , number
   , boolean
-  , nullv
   , undef
   , context
   , list

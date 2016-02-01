@@ -63,8 +63,6 @@ data Literal
   | StringL Text
   | NumberL Integer
   | BooleanL Bool
-  | UndefinedL
-  | NullL
   deriving (Show, Eq)
 
 data BlockParams = BlockParams [Literal]
@@ -113,8 +111,6 @@ renderLiteral = \case
   StringL t  -> "\"" <> T.replace "\"" "\\\"" t <> "\""
   NumberL i  -> T.pack (show i)
   BooleanL b -> if b then "true" else "false"
-  UndefinedL -> "undefined"
-  NullL      -> "null"
 
 -- -----------------------------------------------------------------------------
 

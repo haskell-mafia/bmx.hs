@@ -79,7 +79,9 @@ import           P
 -- BMX is considerably stricter than Handlebars. A number
 -- of error-prone constructs that Handlebars accepts will result in a 'BMXError':
 --
--- * Any attempt to print @undefined@, @null@, a list, or a 'Context'
+-- * The use of @null@ and @undefined@ in a 'Template' is prohibited.
+--
+-- * Any attempt to print @undefined@, a list, or a 'Context'
 -- will result in an error.
 --
 -- * Any attempt to redefine (shadow) a

@@ -32,12 +32,6 @@ boolean = one "boolean" isBool
   where isBool (BoolV _) = True
         isBool _ = False
 
--- | Parse a single 'NullV'.
-nullv :: Monad m => FunctionT m Value
-nullv = one "null" isNull
-  where isNull NullV = True
-        isNull _ = False
-
 -- | Parse a single 'UndefinedV'.
 undef :: Monad m => FunctionT m Value
 undef = one "undefined" isUndef
