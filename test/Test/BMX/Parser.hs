@@ -65,13 +65,6 @@ prop_parse_basic_hash_pair = once . and $ fmap doesParse [
 prop_parse_basic_raw_block = forAll rawContent $ \t ->
   doesParse ("{{{{noop}}}}" <> t <> "{{{{/noop}}}}")
 
--- null should throw a parse error
-prop_parse_null_fails = once $
-  isLeft (templateFromText "{{ null }}")
-
-prop_parse_undef_fails = once $
-  isLeft (templateFromText "{{ undefined }}")
-
 --------------------------------------------------------------------------------
 
 return []

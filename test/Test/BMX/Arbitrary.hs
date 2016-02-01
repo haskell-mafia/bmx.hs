@@ -42,7 +42,8 @@ genContext n = Context . M.fromList <$> vectorOf (n `div` 2) ctxPairs
 ctxPairs = (,) <$> simpleId <*> genVal 8
 
 genVal 0 = oneof [
-    pure UndefinedV
+    pure NullV
+  , pure UndefinedV
   , IntV <$> arbitrary
   , StringV <$> arbitrary
   , BoolV <$> arbitrary
@@ -117,6 +118,8 @@ instance Arbitrary Literal where
     , StringL <$> arbitrary `suchThat` validString
     , NumberL <$> arbitrary
     , BooleanL <$> arbitrary
+    , pure UndefinedL
+    , pure NullL
     ]
   shrink = \case
     StringL t -> StringL <$> filter validString (shrink t)

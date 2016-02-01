@@ -79,7 +79,10 @@ prop_eval_mustache_bool_true = forAll simpleId $ \n ->
 prop_eval_mustache_bool_false = forAll simpleId $ \n ->
   rendersTo (mustache n) (single n (BoolV False)) === pure "false"
 
--- should not be able to render undefined, context or list
+-- should not be able to render undefined, null, context or list
+prop_eval_mustache_null_fails = forAll simpleId $ \n ->
+  isLeft (rendersTo (mustache n) (single n NullV))
+
 prop_eval_mustache_undef_fails = forAll simpleId $ \n ->
   isLeft (rendersTo (mustache n) (single n UndefinedV))
 

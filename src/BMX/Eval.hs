@@ -84,6 +84,7 @@ evalMustache l r = \case
       ContextV _ -> err (Unrenderable "context")
       ListV _ -> err (Unrenderable "list")
       UndefinedV -> err (Unrenderable "undefined")
+      NullV -> err (Unrenderable "null")
       s@(StringV _) -> return (renderValue s)
       i@(IntV _) -> return (renderValue i)
       b@(BoolV _) -> return (renderValue b)
@@ -220,6 +221,8 @@ decoratorFromLit = \case
 
 valueFromLit :: Monad m => Literal -> BMX m (Maybe Value)
 valueFromLit = \case
+  NullL -> val NullV
+  UndefinedL -> val UndefinedV
   BooleanL b -> val (BoolV b)
   NumberL i -> val (IntV i)
   StringL s -> val (StringV s)
