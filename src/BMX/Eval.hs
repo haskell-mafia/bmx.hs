@@ -222,7 +222,6 @@ decoratorFromLit = \case
 valueFromLit :: Monad m => Literal -> BMX m (Maybe Value)
 valueFromLit = \case
   NullL -> val NullV
-  UndefinedL -> val UndefinedV
   BooleanL b -> val (BoolV b)
   NumberL i -> val (IntV i)
   StringL s -> val (StringV s)

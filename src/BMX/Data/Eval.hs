@@ -283,6 +283,8 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmx k))
 -- | Look up a 'Value' in the current 'Context'.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
 -- FIX replace Path with some public type - probably Text
+-- FIX return a Value and use UndefinedV for any failed lookup
+--     (nothing else in the program needs to construct UndefinedV)
 lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references

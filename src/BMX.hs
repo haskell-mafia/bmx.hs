@@ -39,7 +39,7 @@ module BMX (
   -- * Providing data
   -- $values
   , Context
-  , Value (..)
+  , Value (StringV, IntV, BoolV, NullV, ContextV, ListV)
   , contextFromList
   , usingContext
 
