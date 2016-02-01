@@ -6,7 +6,7 @@ module BMX.Builtin.Helpers where
 import           Data.List (zipWith)
 import           Data.Text (Text)
 
-import           BMX.Data
+import           BMX.Data -- FIX should only import things available from BMX
 import           BMX.Function
 
 import           P hiding (log, unless)
