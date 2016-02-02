@@ -43,6 +43,7 @@ library
                        BMX.Internal
 
   other-modules:
+                       BMX.Debug
                        BMX.Eval
                        BMX.Lexer
                        BMX.Parser

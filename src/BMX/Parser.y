@@ -3,7 +3,11 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_HADDOCK hide #-}
-module BMX.Parser (ParseError(..), parse) where
+module BMX.Parser (
+    ParseError(..)
+  , parse
+  , templateFromText
+  ) where
 
 import           Data.Either
 import           Data.Maybe (isJust)
@@ -12,6 +16,7 @@ import qualified Data.Text as T
 import           Safe (headMay)
 
 import           BMX.Data
+import           BMX.Lexer (tokenise)
 
 import           P
 
@@ -302,6 +307,11 @@ simple_id :: { Literal }:
 
 {
 
+
+-- -----------------------------------------------------------------------------
+-- Happy autogen stuff
+
+
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
 prg :: [Stmt] -> Template
@@ -327,4 +337,13 @@ blockError t (Just t1) Nothing = ParseError $
 blockError t (Just t1) (Just t2) = ParseError $
   t <> ": Helper name mismatch (Expected " <> t1 <> ", got " <> t2 <> ")"
 
+
+-- -----------------------------------------------------------------------------
+-- Public interface
+
+-- | Lex and parse a 'Template' from some 'Text'.
+templateFromText :: Text -> Either BMXError Template
+templateFromText = either convert (first BMXParseError . parse) . tokenise
+  where
+    convert = Left . BMXLexError
 }
