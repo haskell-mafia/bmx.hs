@@ -28,6 +28,9 @@ instance Monoid Context where
   mempty = Context mempty
   mappend (Context a) (Context b) = Context (M.union a b)
 
+-- | Runtime values. The things variables point at while rendering happens.
+--
+-- Not to be confused with user-provided 'BMXValue'.
 data Value
   = StringV Text
   | IntV Integer
