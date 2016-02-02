@@ -46,8 +46,8 @@ prop_eval_shadow_helper = forAll simpleId $ \n ->
                                    `usingHelpers` [(n, vacuousBlockHelper)]))
 
 prop_eval_shadow_partial = forAll simpleId $ \n ->
-  isLeft (rendersTo mempty (mempty `usingPartials` [(n, mempty)]
-                                   `usingPartials` [(n, mempty)]))
+  isLeft (rendersTo mempty (mempty `usingPartials` [(n, vacuousPartial)]
+                                   `usingPartials` [(n, vacuousPartial)]))
 
 prop_eval_shadow_decorator = forAll simpleId $ \n ->
   isLeft (rendersTo mempty (mempty `usingDecorators` [(n, vacuousDecorator)]
@@ -264,7 +264,7 @@ testContext = defaultState `usingContext` (contextFromList [
   , ("component", StringV "authorid")
   ])
 
-testPartial =
+testPartial = partialFromTemplate $
   Template
     [ ContentStmt "The author's name is "
     , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))
@@ -274,7 +274,7 @@ testPartial =
     , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "arg" Nothing)) [] (Hash []))
     ]
 
-testPartial' =
+testPartial' = partialFromTemplate $
   Template
     [ ContentStmt "The author's name is "
     , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))
@@ -282,12 +282,12 @@ testPartial' =
     , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "id" Nothing)) [] (Hash []))
     ]
 
-simplePartial =
+simplePartial = partialFromTemplate $
   Template
     [ ContentStmt "They got those chewy pretzels"
     ]
 
-testPartialBlock =
+testPartialBlock = partialFromTemplate $
   Template
     [ ContentStmt "block = "
     , PartialStmt (Fmt Verbatim Verbatim) (Lit (DataL (DataPath (PathID "partial-block" Nothing)))) Nothing (Hash [])

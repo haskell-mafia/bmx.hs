@@ -4,15 +4,82 @@
 {-# OPTIONS_HADDOCK hide #-}
 module BMX.Eval (
     eval
+  , partialFromTemplate
+  , renderTemplate
+  , renderTemplateM
+  , renderTemplateIO
   ) where
 
+import           Data.Functor.Identity (Identity)
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
+import           System.IO (IO)
 
 import           BMX.Data
 import           BMX.Internal.Function
 
 import           P
+
+
+-- -----------------------------------------------------------------------------
+-- Public rendering interface
+
+-- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
+--
+-- All helpers, partials and decorators must be pure. Use 'renderTemplateIO'
+-- if IO helpers are required.
+renderTemplate :: BMXState Identity -> Template -> Either BMXError Page
+renderTemplate bst t = do
+  st <- packState bst
+  first BMXEvalError $ runBMX st (eval t)
+
+-- | Apply a 'Template' to a 'BMXState' in some Monad stack, producing
+-- a 'Page'.
+renderTemplateM :: (Applicative m, Monad m) => BMXState m -> Template -> m (Either BMXError Page)
+renderTemplateM bst t = either (return . Left) runIt (packState bst)
+  where runIt es = do
+          ep <- runBMXT es (eval t)
+          return (first BMXEvalError ep)
+
+-- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
+--
+-- Helpers, partials and decorators may involve IO. Use @renderTemplate@ if
+-- no IO helpers are to be invoked.
+renderTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
+renderTemplateIO bst = renderTemplateM bst
+
+-- | Produce a 'Partial' from an ordinary 'Template'.
+partialFromTemplate :: (Applicative m, Monad m) => Template -> Partial m
+partialFromTemplate = partial . eval
+
+-- | Pack the association lists from 'BMXState' into the maps of 'EvalState',
+-- throwing errors whenever shadowing is encountered.
+packState :: (Applicative m, Monad m) => BMXState m -> Either BMXError (EvalState m)
+packState bst = do
+  let ctx = [bmxContext bst]
+  partials <- mapUnique (bmxPartials bst)
+  helpers <- mapUnique (bmxHelpers bst)
+  decorators <- mapUnique (bmxDecorators bst)
+  let dta = mempty
+  return EvalState {
+      evalContext = ctx
+    , evalData = dta
+    , evalHelpers = helpers
+    , evalPartials = partials
+    , evalDecorators = decorators
+    }
+
+mapUnique :: [(Text, a)] -> Either BMXError (Map Text a)
+mapUnique = foldM foldFun M.empty
+  where foldFun m (k, v)  = if M.member k m
+          then Left (BMXEvalError (Shadowing k))
+          else Right (M.insert k v m)
+
+
+-- -----------------------------------------------------------------------------
+-- Actual renderer
 
 -- | Evaluate a 'Template' in the current 'BMX' environment, yielding a 'Page'.
 eval :: (Applicative m, Monad m) => Template -> BMX m Page

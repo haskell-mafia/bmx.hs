@@ -22,7 +22,7 @@ module BMX.Data.AST (
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           BMX.Data.Token
+import           BMX.Data.Format
 
 import           P
 

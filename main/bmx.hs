@@ -25,7 +25,7 @@ main = do
 testState :: (Applicative m, Monad m) => BMXState m
 testState = defaultState
   `usingContext` testContext
-  `usingPartials` [("authorid", testPartial)]
+  `usingPartials` [("authorid", partialFromTemplate testPartial)]
 
 testContext :: Context
 testContext = contextFromList [
