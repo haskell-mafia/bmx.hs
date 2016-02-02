@@ -17,6 +17,9 @@ module BMX.Function (
   -- * Partials
   , Partial
   , partial
+  -- * Values
+  , Value (..)
+  , Context (..)
   -- * Data variables
   , DataVar (..)
   -- * Argument parsers
@@ -53,6 +56,7 @@ module BMX.Function (
   , withBlockDecorator
   -- ** Utility functions
   , contextToList
+  , contextFromList
   ) where
 
 import           BMX.Data

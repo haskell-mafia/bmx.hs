@@ -11,8 +11,6 @@ module BMX.Eval (
   ) where
 
 import           Data.Functor.Identity (Identity)
-import           Data.Map.Strict (Map)
-import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.IO (IO)
@@ -53,29 +51,6 @@ renderTemplateIO bst = renderTemplateM bst
 -- | Produce a 'Partial' from an ordinary 'Template'.
 partialFromTemplate :: (Applicative m, Monad m) => Template -> Partial m
 partialFromTemplate = partial . eval
-
--- | Pack the association lists from 'BMXState' into the maps of 'EvalState',
--- throwing errors whenever shadowing is encountered.
-packState :: (Applicative m, Monad m) => BMXState m -> Either BMXError (EvalState m)
-packState bst = do
-  let ctx = [bmxContext bst]
-  partials <- mapUnique (bmxPartials bst)
-  helpers <- mapUnique (bmxHelpers bst)
-  decorators <- mapUnique (bmxDecorators bst)
-  let dta = mempty
-  return EvalState {
-      evalContext = ctx
-    , evalData = dta
-    , evalHelpers = helpers
-    , evalPartials = partials
-    , evalDecorators = decorators
-    }
-
-mapUnique :: [(Text, a)] -> Either BMXError (Map Text a)
-mapUnique = foldM foldFun M.empty
-  where foldFun m (k, v)  = if M.member k m
-          then Left (BMXEvalError (Shadowing k))
-          else Right (M.insert k v m)
 
 
 -- -----------------------------------------------------------------------------

@@ -26,7 +26,7 @@ escapeText = T.toStrict . B.renderHtml . B.toHtml
 
 tshow = T.pack . show
 mustache t = "{{" <> t <> "}}"
-single n v = defaultState `usingContext` contextFromList [(n, v)]
+single n v = defaultState `usingContext` [(n, v)]
 
 vacuousHelper, vacuousBlockHelper :: Monad m => Helper m
 vacuousHelper = helper $ return UndefinedV
@@ -62,45 +62,45 @@ prop_eval_content_id t = validContent t ==>
 
 -- any valid string invoked in a mustache should render to itself, escaped
 prop_eval_mustache_string t = validString t ==> forAll simpleId $ \n ->
-  rendersTo (mustache n) (single n (StringV t)) === pure (escapeText t)
+  rendersTo (mustache n) (single n (BMXString t)) === pure (escapeText t)
 
 -- same for unescaped mustache
 prop_eval_mustache_string_unescaped t = validString t ==> forAll simpleId $ \n ->
-  rendersTo ("{{{" <> n <> "}}}") (single n (StringV t)) === pure t
+  rendersTo ("{{{" <> n <> "}}}") (single n (BMXString t)) === pure t
 
 -- any valid number invoked in a mustache should render to itself
 prop_eval_mustache_number i = forAll simpleId $ \n ->
-  rendersTo (mustache n) (single n (IntV i)) === pure (tshow i)
+  rendersTo (mustache n) (single n (BMXNum i)) === pure (tshow i)
 
 -- both bools
 prop_eval_mustache_bool_true = forAll simpleId $ \n ->
-  rendersTo (mustache n) (single n (BoolV True)) === pure "true"
+  rendersTo (mustache n) (single n (BMXBool True)) === pure "true"
 
 prop_eval_mustache_bool_false = forAll simpleId $ \n ->
-  rendersTo (mustache n) (single n (BoolV False)) === pure "false"
+  rendersTo (mustache n) (single n (BMXBool False)) === pure "false"
 
 -- should not be able to render undefined, null, context or list
 prop_eval_mustache_null_fails = forAll simpleId $ \n ->
-  isLeft (rendersTo (mustache n) (single n NullV))
+  isLeft (rendersTo (mustache n) (single n BMXNull))
 
 prop_eval_mustache_undef_fails = forAll simpleId $ \n ->
-  isLeft (rendersTo (mustache n) (single n UndefinedV))
+  isLeft (rendersTo (mustache n) mempty)
 
-prop_eval_mustache_context_fails ctx = forAll simpleId $ \n ->
-  isLeft (rendersTo (mustache n) (single n (ContextV ctx)))
+prop_eval_mustache_context_fails = forAll simpleId $ \n -> forAll genCtxList $ \ctx ->
+  isLeft (rendersTo (mustache n) (single n (BMXContext ctx)))
 
 prop_eval_mustache_list_fails ls = forAll simpleId $ \n ->
-  isLeft (rendersTo (mustache n) (single n (ListV ls)))
+  isLeft (rendersTo (mustache n) (single n (BMXList ls)))
 
 -- unknown variables in mustaches should throw errors
 prop_eval_mustache_undefined_var_fails = forAll simpleId $ \n ->
   isLeft (rendersTo (mustache n) mempty)
 
 -- comments should go away
-prop_eval_comment_elim_1 t ctx = validComment t ==>
+prop_eval_comment_elim_1 t = forAll genCtxList $ \ctx -> validComment t ==>
   rendersTo ("{{!--" <> t <> "--}}") (mempty `usingContext` ctx) === pure T.empty
 
-prop_eval_comment_elim_2 t ctx = validWeakComment t ==>
+prop_eval_comment_elim_2 t = forAll genCtxList $ \ctx -> validWeakComment t ==>
   rendersTo ("{{!" <> t <> "}}") (mempty `usingContext` ctx) === pure T.empty
 
 -- -----------------------------------------------------------------------------
@@ -246,23 +246,22 @@ prop_eval_unit_options_bleed_block = once . isLeft $
 prop_eval_unit_options_bleed_helper = once . isLeft $
   rendersTo "{{ lookup . 'foo' foo='bar' }}" mempty
 
-
 testContext :: BMXState Identity
-testContext = defaultState `usingContext` (contextFromList [
-    ("title", StringV "My First Blog Post!")
-  , ("author", ContextV $ contextFromList [
-                   ("id", IntV 47)
-                 , ("name", StringV "Yehuda Katz")
+testContext = defaultState `usingContext` [
+    ("title", BMXString "My First Blog Post!")
+  , ("author", BMXContext [
+                   ("id", BMXNum 47)
+                 , ("name", BMXString "Yehuda Katz")
                  ])
-  , ("list", ListV [
-                 StringV "why"
-               , StringV "not?"
+  , ("list", BMXList [
+                 BMXString "why"
+               , BMXString "not?"
                ])
-  , ("sing", ListV [StringV "lmnop"])
-  , ("body", StringV "My first post. Wheeeee!")
-  , ("html", StringV "<a href=\"google.com\">Cool Site</a>")
-  , ("component", StringV "authorid")
-  ])
+  , ("sing", BMXList [BMXString "lmnop"])
+  , ("body", BMXString "My first post. Wheeeee!")
+  , ("html", BMXString "<a href=\"google.com\">Cool Site</a>")
+  , ("component", BMXString "authorid")
+  ]
 
 testPartial = partialFromTemplate $
   Template

@@ -54,6 +54,28 @@ genVal n = frequency [
   , (1, ListV <$> smallList (genVal (n `div` 2)))
   ]
 
+instance Arbitrary BMXValue where
+  shrink = genericShrink
+  arbitrary = unbox <$> arbitrary `suchThat` notUndef
+    where
+      unbox :: Value -> BMXValue
+      unbox = \case
+        IntV i -> BMXNum i
+        StringV s -> BMXString s
+        BoolV b -> BMXBool b
+        NullV -> BMXNull
+        ListV ls -> BMXList (fmap unbox ls)
+        ContextV (Context ctx) -> BMXContext . M.toList $ fmap unbox ctx
+        UndefinedV -> BMXNull -- absurd
+      --
+      notUndef = \case
+        UndefinedV -> False
+        _ -> True
+
+genCtxList :: Gen [(Text, BMXValue)]
+genCtxList = zipWith (,) <$> arbitrary `suchThat` (and . fmap validId)
+                         <*> arbitrary
+
 --------------------------------------------------------------------------------
 -- Page
 

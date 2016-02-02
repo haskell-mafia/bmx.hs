@@ -36,9 +36,7 @@ module BMX (
 
   -- * Providing data
   -- $values
-  , Context
-  , Value (..)
-  , contextFromList
+  , BMXValue (..)
   , usingContext
 
   -- * Partials
