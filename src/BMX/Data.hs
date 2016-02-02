@@ -9,6 +9,8 @@ module BMX.Data (
   , usingPartials
   , usingHelpers
   , usingDecorators
+  , contextToJSON
+  , contextFromJSON
   , packState
   , module X
   ) where
@@ -22,9 +24,13 @@ import           BMX.Data.Page as X
 import           BMX.Data.Token as X
 import           BMX.Data.Value as X
 
+import qualified Data.HashMap.Strict as H
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import           Data.Scientific (toBoundedInteger)
 import           Data.Text (Text)
+import           X.Data.Aeson ((.=), object)
+import qualified X.Data.Aeson as A
 
 import           P
 
@@ -51,6 +57,7 @@ instance Monoid (BMXState m) where
     , bmxDecorators = bmxDecorators a <> bmxDecorators b
     }
 
+-- | User-provided data, to be packed into a 'Context' and used for rendering.
 data BMXValue
   = BMXString !Text
   | BMXNum !Integer
@@ -58,6 +65,38 @@ data BMXValue
   | BMXContext ![(Text, BMXValue)]
   | BMXList ![BMXValue]
   | BMXNull
+  deriving (Eq, Show)
+
+-- | Parse a context from JSON.
+contextFromJSON :: A.Value -> A.Parser [(Text, BMXValue)]
+contextFromJSON val = case val of
+  A.Object o -> liftM (sortOn fst) $
+    mapM (\(k, v) -> (,) <$> pure k <*> valueFromJSON v) (H.toList o)
+  _ -> mzero
+
+-- | Serialise a context to JSON.
+contextToJSON :: [(Text, BMXValue)] -> A.Value
+contextToJSON = object . fmap (\(k, v) -> k .= valueToJSON v) . sortOn fst
+
+-- | Parse a value from JSON.
+valueFromJSON :: A.Value -> A.Parser BMXValue
+valueFromJSON val = case val of
+  o@(A.Object _) -> BMXContext <$> contextFromJSON o
+  A.String t -> pure (BMXString t)
+  A.Bool b -> pure (BMXBool b)
+  A.Number i -> maybe mzero (pure . BMXNum . fromIntegral) (toBoundedInteger i :: Maybe Int64)
+  A.Array a -> BMXList . toList <$> mapM valueFromJSON a
+  A.Null -> pure BMXNull
+
+-- | Serialise a value to JSON.
+valueToJSON :: BMXValue -> A.Value
+valueToJSON val = case val of
+  BMXNum i -> A.toJSON i
+  BMXString t -> A.toJSON t
+  BMXBool b -> A.toJSON b
+  BMXList l -> A.toJSON $ fmap valueToJSON l
+  BMXContext l -> contextToJSON l
+  BMXNull -> A.Null
 
 -- | Set the initial context in an 'BMXState'.
 usingContext :: (Applicative m, Monad m) => BMXState m -> [(Text, BMXValue)] -> BMXState m

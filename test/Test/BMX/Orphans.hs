@@ -85,4 +85,3 @@ deriving instance Typeable Value
 deriving instance Generic BMXValue
 deriving instance Data BMXValue
 deriving instance Typeable BMXValue
-deriving instance Show BMXValue

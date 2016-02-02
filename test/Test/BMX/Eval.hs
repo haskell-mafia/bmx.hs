@@ -7,9 +7,11 @@ import           Control.Monad.Identity (Identity)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T (toStrict)
+import           Disorder.Core
 import           Test.QuickCheck
 import qualified Text.Blaze.Html as B
 import qualified Text.Blaze.Html.Renderer.Text as B
+import           X.Data.Aeson (parseEither)
 
 import           BMX
 import           BMX.Internal
@@ -52,6 +54,11 @@ prop_eval_shadow_partial = forAll simpleId $ \n ->
 prop_eval_shadow_decorator = forAll simpleId $ \n ->
   isLeft (rendersTo mempty (mempty `usingDecorators` [(n, vacuousDecorator)]
                                    `usingDecorators` [(n, vacuousBlockDecorator)]))
+
+-- -----------------------------------------------------------------------------
+-- Serialisation
+
+prop_json_trip = forAll genCtxList $ tripping contextToJSON (parseEither contextFromJSON)
 
 -- -----------------------------------------------------------------------------
 -- Mustache tests (no helpers)

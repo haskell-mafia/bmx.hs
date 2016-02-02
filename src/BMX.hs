@@ -41,6 +41,7 @@ module BMX (
   -- $values
   , BMXValue (..)
   , usingContext
+  , contextToJSON
 
   -- * Partials
   -- $partials
