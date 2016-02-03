@@ -1,5 +1,4 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,7 +10,6 @@ module BMX.Data.Format (
 import           Data.Data (Data, Typeable)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           GHC.Generics (Generic)
 
 import           P
 
@@ -19,7 +17,7 @@ import           P
 data Format
   = Strip     -- ^ Strip all adjacent whitespace in some direction
   | Verbatim  -- ^ Leave adjacent nodes intact, don't strip
-  deriving (Show, Eq, Generic, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable)
 
 renderFormat :: Format -> Text
 renderFormat = \case

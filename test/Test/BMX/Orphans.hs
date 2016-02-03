@@ -23,44 +23,26 @@ instance Show BMXError where
   show = T.unpack . renderBMXError
 
 deriving instance Generic Template
-deriving instance Data Template
-deriving instance Typeable Template
 
 deriving instance Generic Stmt
-deriving instance Data Stmt
-deriving instance Typeable Stmt
 
 deriving instance Generic Expr
-deriving instance Data Expr
-deriving instance Typeable Expr
 
 deriving instance Generic Literal
-deriving instance Data Literal
-deriving instance Typeable Literal
 
 deriving instance Generic BlockParams
-deriving instance Data BlockParams
-deriving instance Typeable BlockParams
 
 deriving instance Generic Path
-deriving instance Data Path
-deriving instance Typeable Path
 
 deriving instance Generic DataPath
-deriving instance Data DataPath
-deriving instance Typeable DataPath
 
 deriving instance Generic Hash
-deriving instance Data Hash
-deriving instance Typeable Hash
 
 deriving instance Generic HashPair
-deriving instance Data HashPair
-deriving instance Typeable HashPair
 
 deriving instance Generic Fmt
-deriving instance Data Fmt
-deriving instance Typeable Fmt
+
+deriving instance Generic Format
 
 deriving instance Generic Tokens
 deriving instance Data Tokens

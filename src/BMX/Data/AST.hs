@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -19,6 +20,7 @@ module BMX.Data.AST (
   , renderDataPath
   ) where
 
+import           Data.Data (Data, Typeable)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -30,7 +32,7 @@ import           P
 --
 -- Build a Template with 'templateFromText'.
 newtype Template = Template [Stmt]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 instance Monoid Template where
   mempty = Template mempty
@@ -50,12 +52,12 @@ data Stmt
   | CommentStmt Fmt Text
   | DecoratorStmt Fmt Expr
   | DecoratorBlock Fmt Fmt Expr Template
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Expr
   = Lit Literal
   | SExp Literal [Expr] Hash
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Literal
   = PathL Path
@@ -64,10 +66,10 @@ data Literal
   | NumberL Integer
   | BooleanL Bool
   | NullL
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data BlockParams = BlockParams [Literal]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 instance Monoid BlockParams where
   mempty = BlockParams []
@@ -76,23 +78,23 @@ instance Monoid BlockParams where
 data Path
   = PathID Text (Maybe (Char, Path))
   | PathSeg Text (Maybe (Char, Path))
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data DataPath = DataPath Path
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Hash = Hash [HashPair]
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 instance Monoid Hash where
   mempty = Hash []
   mappend (Hash a) (Hash b) = Hash (a <> b)
 
 data HashPair = HashPair Text Expr
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 data Fmt = Fmt Format Format
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
 
 templateToText :: Template -> Text
 templateToText = renderTemplate
