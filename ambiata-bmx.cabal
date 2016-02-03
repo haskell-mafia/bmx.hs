@@ -77,7 +77,12 @@ executable bmx
                        base
                      , ambiata-p
                      , ambiata-bmx
+                     , ambiata-x-aeson
+                     , ambiata-x-eithert
+                     , ambiata-x-optparse
                      , text
+                     , transformers
+                     , directory                       == 1.2.*
 
   hs-source-dirs:      gen
 
