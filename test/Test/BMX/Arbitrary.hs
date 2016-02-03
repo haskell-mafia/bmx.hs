@@ -136,7 +136,6 @@ instance Arbitrary Literal where
     , StringL <$> arbitrary `suchThat` validString
     , NumberL <$> arbitrary
     , BooleanL <$> arbitrary
-    , pure UndefinedL
     , pure NullL
     ]
   shrink = \case
