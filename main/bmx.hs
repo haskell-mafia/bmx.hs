@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import           Data.Text (Text)
 import qualified Data.Text.IO as T
 import           System.IO
 
@@ -27,16 +28,16 @@ testState = defaultState
   `usingContext` testContext
   `usingPartials` [("authorid", partialFromTemplate testPartial)]
 
-testContext :: Context
-testContext = contextFromList [
-    ("title", StringV "My First Blog Post!")
-  , ("author", ContextV . contextFromList $ [
-                   ("id", IntV 47)
-                 , ("name", StringV "Yehuda Katz")
+testContext :: [(Text, BMXValue)]
+testContext = [
+    ("title", BMXString "My First Blog Post!")
+  , ("author", BMXContext [
+                   ("id", BMXNum 47)
+                 , ("name", BMXString "Yehuda Katz")
                  ])
-  , ("body", StringV "My first post. Wheeeee!")
-  , ("html", StringV "<a href=\"google.com\">Cool Site</a>")
-  , ("component", StringV "authorid")
+  , ("body", BMXString "My first post. Wheeeee!")
+  , ("html", BMXString "<a href=\"google.com\">Cool Site</a>")
+  , ("component", BMXString "authorid")
   ]
 
 testPartial :: Template

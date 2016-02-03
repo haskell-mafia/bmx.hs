@@ -81,3 +81,7 @@ deriving instance Typeable Context
 deriving instance Generic Value
 deriving instance Data Value
 deriving instance Typeable Value
+
+deriving instance Generic BMXValue
+deriving instance Data BMXValue
+deriving instance Typeable BMXValue

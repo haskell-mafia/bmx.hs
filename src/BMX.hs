@@ -3,6 +3,9 @@
 -- | A templating library in the style of <http://handlebarsjs.com Handlebars.js>,
 -- embedded in Haskell for static or server-side rendering.
 --
+-- BMX templates can be written and maintained without any Haskell
+-- knowledge, while the rendering logic (described through 'Helper'
+-- functions) can be extended or replaced by the user.
 
 module BMX (
   -- * Differences from Handlebars
@@ -36,10 +39,9 @@ module BMX (
 
   -- * Providing data
   -- $values
-  , Context
-  , Value (..)
-  , contextFromList
+  , BMXValue (..)
   , usingContext
+  , contextToJSON
 
   -- * Partials
   -- $partials
@@ -104,19 +106,22 @@ import           BMX.Parser (templateFromText)
 --
 -- > myEvalState = defaultState
 -- >   `usingContext` coolContext
--- >   `usingPartials` [("login", loginTemplate), ("logout", logoutTemplate)]
+-- >   `usingPartials` [("login", partialFromTemplate loginTemplate), ("logout", partialFromTemplate logoutTemplate)]
 
 -- $values
 --
 -- To make use of a 'Template', we need to supply it with data at runtime.
 --
--- A 'Context' is a set of mappings from 'Text' to 'Value', i.e. local
--- variable bindings. The current 'Context' is stored in the
+-- A context is a set of mappings from 'Text' to 'BMXValue', i.e. local
+-- variable bindings. The current context is stored in the
 -- 'BMXState', and is used for all variable lookups. The initial
--- context can be set via 'usingContext'.
+-- context can be built from an association list with 'usingContext'.
 --
--- Values can be integers, strings, booleans, undefined, lists, or
--- nested contexts / namespaces. Use the constructors directly.
+-- Values can be integers, strings, booleans, lists, null, or nested
+-- contexts / namespaces. Use the constructors directly.
+--
+-- Note that all variable names must be unique. Shadowing will lead to
+-- a rendering error.
 
 -- $partials
 --
@@ -132,9 +137,9 @@ import           BMX.Parser (templateFromText)
 --
 -- A 'Helper' comes in two varieties:
 --
--- * A 'BMX.Function.helper' is a function that produces a 'Value'.
---   Regular helpers can be invoked in mustache expressions, and in
---   subexpression arguments to other helpers.
+-- * A 'BMX.Function.helper' is a function that produces a runtime
+-- 'Value'.  Regular helpers can be invoked in mustache expressions,
+-- and in subexpression arguments to other helpers.
 --
 -- * A 'BMX.Function.blockHelper' is a function that accepts two
 --   'Template' parameters (roughly equivalent to @then@ and @else@

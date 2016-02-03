@@ -239,6 +239,7 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> Value -- ^ The value the binding should point to
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
+withVariable key UndefinedV _ = err (DefUndef key)
 withVariable key val k = noShadowing >> BMX (local (modifyContext putVar) (bmx k))
   where
     noShadowing = do
@@ -361,10 +362,12 @@ data EvalError
   | NoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
   | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
   | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
-  | Shadowing !Text -- ^ Attempt to redefine a variable in the initial environment
   | ShadowValue !Text -- ^ Attempt to redefine a variable in the current context
   | ShadowPartial !Text -- ^ Attempt to redefine a partial
+  | ShadowHelper !Text -- ^ Attempt to redefine a helper
+  | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
   | ShadowData !Text -- ^ Attempt to redefine a data variable
+  | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
   | SomeError !Text -- ^ FIX This case should be removed eventually
 
 instance Monoid EvalError where
@@ -378,14 +381,16 @@ renderEvalError = \case
   PartialError fe -> "Partial misuse: " <> renderFunctionError fe
   DecoratorError fe -> "Decorator misuse: " <> renderFunctionError fe
   InvalidPath t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
-  NoSuchPartial t -> "Partial " <> t <> " is not defined"
-  NoSuchDecorator t -> "Decorator " <> t <> " is not defined"
-  NoSuchHelper t -> "Helper " <> t <> " is not defined"
-  NoSuchValue t -> "Value " <> t <> " is not defined"
+  NoSuchPartial t -> "Partial '" <> t <> "' is not defined"
+  NoSuchDecorator t -> "Decorator '" <> t <> "' is not defined"
+  NoSuchHelper t -> "Helper '" <> t <> "' is not defined"
+  NoSuchValue t -> "Value '" <> t <> "' is not defined"
   ParserError t -> "Parser error: " <> t
-  Unrenderable t -> "Invalid mustache: cannot render " <> t
-  Shadowing t -> "The local definition of " <> t <> " shadows an existing binding"
-  ShadowValue t -> "The local definition of value " <> t <> " shadows an existing binding"
-  ShadowPartial t -> "The local definition of partial " <> t <> " shadows an existing binding"
-  ShadowData t -> "The local definition of data variable @" <> t <> " shadows an existing binding"
+  Unrenderable t -> "Invalid mustache: cannot render '" <> t <> "'"
+  ShadowValue t -> "The local definition of value '" <> t <> "' shadows an existing binding"
+  ShadowHelper t -> "The local definition of helper '" <> t <> "' shadows an existing binding"
+  ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
+  ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
+  ShadowData t -> "The local definition of data variable '@" <> t <> "' shadows an existing binding"
+  DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
   SomeError t -> "Error: " <> t

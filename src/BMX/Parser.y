@@ -272,10 +272,10 @@ literal :: { Literal }:
     string                           { StringL $1 }
   | number                           { NumberL $1 }
   | bool                             { BooleanL $1 }
-  | undef                            { UndefinedL }
   | nul                              { NullL }
   | path                             { PathL $1 }
-  | data_path                         { DataL $1 }
+  | data_path                        { DataL $1 }
+  | undef                            {% Left undefError }
 
 path :: { Path }:
     ident sep path                   { PathID $1 (Just ($2, $3)) }
@@ -309,8 +309,7 @@ simple_id :: { Literal }:
 
 
 -- -----------------------------------------------------------------------------
--- Happy autogen stuff
-
+-- Parser util
 
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
@@ -337,6 +336,8 @@ blockError t (Just t1) Nothing = ParseError $
 blockError t (Just t1) (Just t2) = ParseError $
   t <> ": Helper name mismatch (Expected " <> t1 <> ", got " <> t2 <> ")"
 
+undefError :: ParseError
+undefError = ParseError "Found prohibited 'undefined' literal"
 
 -- -----------------------------------------------------------------------------
 -- Public interface

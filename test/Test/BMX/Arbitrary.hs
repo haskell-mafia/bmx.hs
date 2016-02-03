@@ -8,7 +8,7 @@ import           Data.Char (isAlpha)
 import           Data.Data
 import           Data.Generics.Aliases
 import           Data.Generics.Schemes
-import           Data.List (zipWith)
+import           Data.List (nubBy, zipWith)
 import qualified Data.Map.Strict as M
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -39,7 +39,7 @@ instance Arbitrary Param where
 genContext 0 = pure (Context mempty)
 genContext n = Context . M.fromList <$> vectorOf (n `div` 2) ctxPairs
 
-ctxPairs = (,) <$> simpleId <*> genVal 8
+ctxPairs = (,) <$> simpleId <*> genVal 4
 
 genVal 0 = oneof [
     pure NullV
@@ -53,6 +53,24 @@ genVal n = frequency [
   , (1, ContextV <$> genContext (n `div` 2))
   , (1, ListV <$> smallList (genVal (n `div` 2)))
   ]
+
+instance Arbitrary BMXValue where
+  shrink = genericShrink
+  arbitrary = unbox <$> genVal 8
+    where
+      unbox :: Value -> BMXValue
+      unbox = \case
+        IntV i -> BMXNum i
+        StringV s -> BMXString s
+        BoolV b -> BMXBool b
+        NullV -> BMXNull
+        ListV ls -> BMXList (fmap unbox ls)
+        ContextV (Context ctx) -> BMXContext . M.toList $ fmap unbox ctx
+        UndefinedV -> BMXNull -- why not
+
+genCtxList :: Gen [(Text, BMXValue)]
+genCtxList = liftM (sortOn fst . nubBy (on (==) fst)) $
+  zipWith (,) <$> smallList simpleId <*> smallList arbitrary
 
 --------------------------------------------------------------------------------
 -- Page
@@ -118,7 +136,6 @@ instance Arbitrary Literal where
     , StringL <$> arbitrary `suchThat` validString
     , NumberL <$> arbitrary
     , BooleanL <$> arbitrary
-    , pure UndefinedL
     , pure NullL
     ]
   shrink = \case
@@ -254,7 +271,7 @@ validComment = noNull
 
 -- | Weaker comments (inside {{! }} blocks) can't have mustaches
 validWeakComment :: Text -> Bool
-validWeakComment t = and [noNull t, noMustaches t, noMustacheClose t, T.takeEnd 1 t /= "}"]
+validWeakComment t = and [noNull t, noMustaches t, noMustacheClose t, T.takeEnd 1 t /= "}", T.take 2 t /= "--"]
   where noMustacheClose = P.null . T.breakOnAll "}}"
 
 -- | Generated ID can't contain Sep characters, conflicts w sep
