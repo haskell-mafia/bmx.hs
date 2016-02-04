@@ -59,7 +59,7 @@ import           P
 -- BMX monad
 
 -- | The main evaluation monad. Allows local changes to the state and fatal errors.
-newtype BMX m a = BMX { bmx :: EitherT EvalError (ReaderT (EvalState m) m) a }
+newtype BMX m a = BMX { bmxT :: EitherT EvalError (ReaderT (EvalState m) m) a }
   deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
 
 instance MonadTrans BMX where
@@ -74,7 +74,7 @@ runBMX st = runIdentity . runBMXT st
 
 -- | Run a BMX action in some monad stack
 runBMXT :: Monad m => EvalState m -> BMX m a -> m (Either EvalError a)
-runBMXT st = (`runReaderT` st) . runEitherT . bmx
+runBMXT st = (`runReaderT` st) . runEitherT . bmxT
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left
@@ -229,7 +229,7 @@ modifyContext fun es =
 withContext :: Monad m => Context -- ^ The new top-level 'Context'
             -> BMX m a -- ^ The action to run with modified 'Context'
             -> BMX m a
-withContext !c b = BMX $ local (pushContext c) (bmx b)
+withContext !c b = BMX $ local (pushContext c) (bmxT b)
 
 -- | Register a variable in the current context, then run some action
 -- in the 'BMX' monad.
@@ -240,7 +240,7 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
 withVariable key UndefinedV _ = err (DefUndef key)
-withVariable key val k = noShadowing >> BMX (local (modifyContext putVar) (bmx k))
+withVariable key val k = noShadowing >> BMX (local (modifyContext putVar) (bmxT k))
   where
     noShadowing = do
       mv <- lookupValue (PathID key Nothing)
@@ -257,7 +257,7 @@ withData :: Monad m => Text -- ^ The name to be bound. Note that the @\@@ is imp
          -> DataVar m -- ^ The 'DataVar' the binding should point to
          -> BMX m a -- ^ The action to run with modified environment
          -> BMX m a
-withData key val k = noShadowing >> BMX (local addData (bmx k))
+withData key val k = noShadowing >> BMX (local addData (bmxT k))
   where
     noShadowing = do
       md <- lookupData (DataPath (PathID key Nothing))
@@ -273,7 +273,7 @@ withPartial :: Monad m => Text -- ^ The name to be bound
             -> Partial m -- ^ The 'Partial' the binding should point to
             -> BMX m a -- ^ The action to run with modified environment
             -> BMX m a
-withPartial name p k = noShadowing >> BMX (local addPartial (bmx k))
+withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
   where
     noShadowing = do
       mv <- lookupPartial (PathID name Nothing)
@@ -284,7 +284,7 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmx k))
 -- | Look up a 'Value' in the current 'Context'.
 lookupValue :: Monad m => Path -> BMX m (Maybe Value)
 -- FIX replace Path with some public type - probably Text
-lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
+lookupValue i = BMX $ ask >>= (bmxT . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -323,7 +323,7 @@ lookupValue i = BMX $ ask >>= (bmx . go i . evalContext)
 
 -- | Look up a 'DataVar' in the current environment.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
-lookupData (DataPath p) = BMX $ ask >>= \es -> bmx $
+lookupData (DataPath p) = BMX $ ask >>= \es -> bmxT $
   let d = evalData es in case p of
     PathID t Nothing -> return (M.lookup t d)
     PathSeg t Nothing -> return (M.lookup t d)

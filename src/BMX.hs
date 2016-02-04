@@ -16,6 +16,8 @@ module BMX (
     Template
   , templateFromText
   , templateToText
+  , templateFile
+  , bmx
 
   -- * Pages
   -- $pages
@@ -46,8 +48,10 @@ module BMX (
   -- * Partials
   -- $partials
   , Partial
-  , partialFromTemplate
   , usingPartials
+  , partialFile
+  , partialDir
+  , partialFromTemplate
 
   -- * Helpers
   -- $helpers
@@ -65,6 +69,7 @@ import           BMX.Data
 import           BMX.Debug (debugTemplateIO)
 import           BMX.Eval (renderTemplate, renderTemplateM, renderTemplateIO, partialFromTemplate)
 import           BMX.Parser (templateFromText)
+import           BMX.TH (bmx, templateFile, partialFile, partialDir)
 
 -- $whatsnew
 --
