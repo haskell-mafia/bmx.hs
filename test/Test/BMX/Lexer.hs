@@ -16,8 +16,9 @@ import           Test.BMX.Arbitrary ()
 import           P
 
 --------------------------------------------------------------------------------
--- The parser roundtrip test provides sufficient lexer coverage.
--- These regression tests are here for quick diagnosis of any breakage
+-- The parser roundtrip test provides most of our lexer coverage.
+-- These regression tests are here for quick diagnosis of any breakage,
+-- and whitespace stuff that the pretty printer doesn't generate
 
 prop_lex_none = once $ tokenise T.empty == Right []
 
@@ -37,7 +38,11 @@ prop_lex_block_inverse_caret = once $
   tokenise "{{^}}" === Right [OpenInverse Verbatim, Close Verbatim]
 
 prop_lex_block_inverse_else = once $
-  tokenise "{{else}}" === Right [OpenInverseChain Verbatim, Close Verbatim]
+       tokenise "{{ else }}" === res
+  .&&. tokenise "{{else}}" === res
+  .&&. tokenise "{{ else}}" === res
+  .&&. tokenise "{{else }}" === res
+  where res = Right [OpenInverseChain Verbatim, Close Verbatim]
 
 prop_lex_inverse_chain = once $
   tokenise "{{else if abcde}}"

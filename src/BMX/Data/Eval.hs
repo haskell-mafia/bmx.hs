@@ -257,12 +257,8 @@ withData :: Monad m => Text -- ^ The name to be bound. Note that the @\@@ is imp
          -> DataVar m -- ^ The 'DataVar' the binding should point to
          -> BMX m a -- ^ The action to run with modified environment
          -> BMX m a
-withData key val k = noShadowing >> BMX (local addData (bmxT k))
+withData key val k = BMX (local addData (bmxT k))
   where
-    noShadowing = do
-      md <- lookupData (DataPath (PathID key Nothing))
-      maybe (return ()) (const $ err (ShadowData key)) md
-    --
     addData es = es { evalData = M.insert key val (evalData es) }
 
 -- | Register a partial in the current context, then run some action
