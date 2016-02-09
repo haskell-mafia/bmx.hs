@@ -231,7 +231,7 @@ openInverse :: Format -> Parser Token
 openInverse f = try $ char '^' *> pure (OpenInverse f)
 
 openInverseChain :: Format -> Parser Token
-openInverseChain f = try $ skipSpace *> string "else" *> pure (OpenInverseChain f)
+openInverseChain f = try $ (skipSpace *> string "else" <* skipSpace) *> pure (OpenInverseChain f)
 
 
 -- -----------------------------------------------------------------------------

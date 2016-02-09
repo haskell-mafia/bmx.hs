@@ -43,6 +43,7 @@ module BMX (
   -- $values
   , BMXValue (..)
   , usingContext
+  , contextFromJSON
   , contextToJSON
 
   -- * Partials
@@ -77,11 +78,13 @@ import           BMX.TH (bmx, templateFile, partialFile, partialDir)
 -- of error-prone constructs that Handlebars accepts will result in a 'BMXError':
 --
 -- * Any attempt to print @undefined@, @null@, a list, or a 'Context'
--- will result in an error.
+-- (object) will result in an error.
 --
--- * Any attempt to redefine (shadow) a
--- variable, helper, partial, decorator, or data variable will result
--- in an error.
+-- * Any attempt to redefine (shadow) a variable, helper, partial, or
+-- decorator will result in an error.
+--
+-- * Heavy restrictions on mutable state. Updates are restricted to
+-- the current scope.
 --
 -- * To Be Documented
 
