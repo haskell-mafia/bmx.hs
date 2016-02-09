@@ -45,15 +45,15 @@ with = blockHelper $ \thenp elsep -> do
   ctx <- optional context
   liftBMX $ maybe
     (eval elsep)
-    (\(ContextV c) -> withContext c (eval thenp))
+    (\c -> withContext c (eval thenp))
     ctx
 
 -- | The "lookup" helper. Takes a context and a string, and looks up a
 -- value in a context. Returns @undefined@ when it doesn't exist.
 lookup :: (Applicative m, Monad m) => Helper m
 lookup = helper $ do
-  (ContextV ctx) <- context
-  (StringV str) <- string
+  ctx <- context
+  str <- string
   liftBMX $ do
     mv <- withContext ctx (lookupValue (PathID str Nothing))
     return (fromMaybe UndefinedV mv)
@@ -69,14 +69,12 @@ lookup = helper $ do
 -- value in each loop, and the second parameter to the loop index.
 each :: (Applicative m, Monad m) => Helper m
 each = blockHelper $ \thenp elsep -> do
-  iter <- list <|> context
+  iter <- eitherA list context
   par1 <- optional param -- block param: name for current item (list), name for key (ctx)
   par2 <- optional param -- block param: name for current loop idx (list), name for val (ctx)
   -- This code is the worst, mostly because of special variables.
-  let go = case iter of
-        ContextV c -> fmap fold (sequence (eachMap c))
-        ListV l -> fmap fold (sequence (eachList l))
-        v -> err (TypeError "context or list" (renderValueType v))
+  let go = if null loop then eval elsep else fmap fold . sequence $ loop
+      loop = either eachList eachMap iter
       -- Separate iteration cases for context and list
       eachMap c = indices 0 (fmap stepKV (contextToList c))
       eachList l = zipWith listIdx [0..] (indices 0 (fmap step l))
@@ -97,4 +95,4 @@ each = blockHelper $ \thenp elsep -> do
       withName Nothing _ k = k
       withName (Just (Param n)) v k = withVariable n v k
       listIdx i k = withName par2 (IntV i) k
-  liftBMX $ if falsey iter then eval elsep else go
+  liftBMX go

@@ -14,7 +14,7 @@ import           P
 -- with the name of the first argument.
 inline :: (Applicative m, Monad m) => Decorator m
 inline = blockDecorator $ \block k -> do
-  (StringV name) <- string
+  name <- string
   liftBMX $ do
     let newPartial = partial (eval block)
     withPartial name newPartial k
