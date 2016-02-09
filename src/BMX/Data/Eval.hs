@@ -60,7 +60,7 @@ import           P
 
 -- | The main evaluation monad. Allows local changes to the state and fatal errors.
 newtype BMX m a = BMX { bmxT :: EitherT EvalError (ReaderT (EvalState m) m) a }
-  deriving (Functor, Applicative, Alternative, Monad, MonadReader (EvalState m))
+  deriving (Functor, Applicative, Monad)
 
 instance MonadTrans BMX where
   lift = BMX . lift . lift
@@ -367,11 +367,6 @@ data EvalError
   | ShadowHelper !Text -- ^ Attempt to redefine a helper
   | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
   | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
-  | SomeError -- ^ mempty
-
-instance Monoid EvalError where
-  mempty = SomeError
-  mappend a _ = a
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -391,4 +386,3 @@ renderEvalError = \case
   ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
   ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
   DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
-  SomeError -> "Unknown error (mempty)"
