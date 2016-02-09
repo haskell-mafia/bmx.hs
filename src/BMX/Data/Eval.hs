@@ -235,6 +235,8 @@ withContext !c b = BMX $ local (pushContext c) (bmxT b)
 -- in the 'BMX' monad.
 --
 -- The 'Context' is only changed for the duration of that action.
+--
+-- Redefinition of existing variables is not permitted, and will throw an error.
 withVariable :: Monad m => Text -- ^ The name to be bound
              -> Value -- ^ The value the binding should point to
              -> BMX m a -- ^ The action to run with modified 'Context'
@@ -265,6 +267,8 @@ withData key val k = BMX (local addData (bmxT k))
 -- in the 'BMX' monad.
 --
 -- The new 'Partial' will persist only for the duration of that action.
+--
+-- Redefinition of existing partials is not permitted, and will throw an error.
 withPartial :: Monad m => Text -- ^ The name to be bound
             -> Partial m -- ^ The 'Partial' the binding should point to
             -> BMX m a -- ^ The action to run with modified environment
@@ -362,12 +366,11 @@ data EvalError
   | ShadowPartial !Text -- ^ Attempt to redefine a partial
   | ShadowHelper !Text -- ^ Attempt to redefine a helper
   | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
-  | ShadowData !Text -- ^ Attempt to redefine a data variable
   | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
-  | SomeError !Text -- ^ FIX This case should be removed eventually
+  | SomeError -- ^ mempty
 
 instance Monoid EvalError where
-  mempty = SomeError "empty error"
+  mempty = SomeError
   mappend a _ = a
 
 renderEvalError :: EvalError -> Text
@@ -387,6 +390,5 @@ renderEvalError = \case
   ShadowHelper t -> "The local definition of helper '" <> t <> "' shadows an existing binding"
   ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
   ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
-  ShadowData t -> "The local definition of data variable '@" <> t <> "' shadows an existing binding"
   DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
-  SomeError t -> "Error: " <> t
+  SomeError -> "Unknown error (mempty)"
