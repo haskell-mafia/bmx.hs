@@ -3,6 +3,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Internal.Function where
 
+import           Data.Text (Text)
+
 import           BMX.Data
 
 import           P
@@ -12,49 +14,56 @@ import           P
 
 -- | The @any@ combinator. Parse a single 'Value' of any variety.
 value :: Monad m => FunctionT m Value
-value = one "value" (const True)
+value = one "value" return
 
 -- | Parse a single 'StringV'.
-string :: Monad m => FunctionT m Value
+string :: Monad m => FunctionT m Text
 string = one "string" isString
-  where isString (StringV _) = True
-        isString _ = False
+  where isString (StringV t) = Just t
+        isString _ = Nothing
 
 -- | Parse a single 'IntV'.
-number :: Monad m => FunctionT m Value
+number :: Monad m => FunctionT m Integer
 number = one "number" isNum
-  where isNum (IntV _) = True
-        isNum _ = False
+  where isNum (IntV i) = Just i
+        isNum _ = Nothing
 
 -- | Parse a single 'BoolV'.
-boolean :: Monad m => FunctionT m Value
+boolean :: Monad m => FunctionT m Bool
 boolean = one "boolean" isBool
-  where isBool (BoolV _) = True
-        isBool _ = False
+  where isBool (BoolV b) = Just b
+        isBool _ = Nothing
+
+-- | Parse a single 'ContextV'.
+context :: Monad m => FunctionT m Context
+context = one "context" isContext
+  where isContext (ContextV c) = Just c
+        isContext _ = Nothing
+
+-- | Parse a single 'ListV'.
+list :: Monad m => FunctionT m [Value]
+list = one "list" isList
+  where isList (ListV l) = Just l
+        isList _ = Nothing
+
+-- | Returns @Just val@ if the parser succeeds, or @Nothing@ if the next
+-- 'Value' is 'NullV'. Throws a type error otherwise.
+--
+-- > nullable f = (Just <$> f) <|> (nullv *> pure Nothing)
+nullable :: (Applicative m, Monad m) => FunctionT m a -> FunctionT m (Maybe a)
+nullable f = (Just <$> f) <|> (nullv *> pure Nothing)
 
 -- | Parse a single 'NullV'.
 nullv :: Monad m => FunctionT m Value
 nullv = one "null" isNull
-  where isNull NullV = True
-        isNull _ = False
+  where isNull NullV = Just NullV
+        isNull _ = Nothing
 
 -- | Parse a single 'UndefinedV'.
 undef :: Monad m => FunctionT m Value
 undef = one "undefined" isUndef
-  where isUndef UndefinedV = True
-        isUndef _ = False
-
--- | Parse a single 'ContextV'.
-context :: Monad m => FunctionT m Value
-context = one "context" isContext
-  where isContext (ContextV _) = True
-        isContext _ = False
-
--- | Parse a single 'ListV'.
-list :: Monad m => FunctionT m Value
-list = one "list" isList
-  where isList (ListV _) = True
-        isList _ = False
+  where isUndef UndefinedV = Just UndefinedV
+        isUndef _ = Nothing
 
 -- -----------------------------------------------------------------------------
 -- Running / using a helper, partial or decorator

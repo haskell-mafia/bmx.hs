@@ -54,27 +54,27 @@ prop_fun_infinite_params vs ps = isLeft (flattenFunction vs ps fun)
 
 -- each combinator works properly
 prop_fun_comb_string v ps = (isString v .&&. val === pure v) .||. (not (isString v) .&&. isLeft val)
-  where val = flattenFunction [v] ps string
+  where val = flattenFunction [v] ps (StringV <$> string)
         isString (StringV _) = True
         isString _ = False
 
 prop_fun_comb_num v ps = (isNum v .&&. val === pure v) .||. (not (isNum v) .&&. isLeft val)
-  where val = flattenFunction [v] ps number
+  where val = flattenFunction [v] ps (IntV <$> number)
         isNum (IntV _) = True
         isNum _ = False
 
 prop_fun_comb_bool v ps = (isBool v .&&. val === pure v) .||. (not (isBool v) .&&. isLeft val)
-  where val = flattenFunction [v] ps boolean
+  where val = flattenFunction [v] ps (BoolV <$> boolean)
         isBool (BoolV _) = True
         isBool _ = False
 
 prop_fun_comb_list v ps = (isList v .&&. val === pure v) .||. (not (isList v) .&&. isLeft val)
-  where val = flattenFunction [v] ps list
+  where val = flattenFunction [v] ps (ListV <$> list)
         isList (ListV _) = True
         isList _ = False
 
 prop_fun_comb_context v ps = (isCtx v .&&. val === pure v) .||. (not (isCtx v) .&&. isLeft val)
-  where val = flattenFunction [v] ps context
+  where val = flattenFunction [v] ps (ContextV <$> context)
         isCtx (ContextV _) = True
         isCtx _ = False
 
@@ -85,7 +85,7 @@ prop_fun_comb_undef v ps = (isUndef v .&&. val === pure v) .||. (not (isUndef v)
 
 -- alternative instance should work for simple cases
 prop_fun_backtrack_1 v ps = (flattenFunction [v] ps fun === pure v) .||. garbage v
-  where fun = boolean <|> string <|> number
+  where fun = (BoolV <$> boolean) <|> (StringV <$> string) <|> (IntV <$> number)
         garbage (BoolV _) = False
         garbage (StringV _) = False
         garbage (IntV _) = False
@@ -96,18 +96,31 @@ prop_fun_backtrack_1 v ps = (flattenFunction [v] ps fun === pure v) .||. garbage
 prop_fun_unit_backtrack_1 ps = once $
   flattenFunction vals ps fun === pure (StringV "hey")
   where vals = [IntV 55, IntV 65, StringV "hey"]
-        f1 = number *> number *> number
-        f2 = number *> number *> string
+        f1 = IntV <$> (number *> number *> number)
+        f2 = StringV <$> (number *> number *> string)
         fun = f1 <|> f2
 
 prop_fun_unit_backtrack_2 ps = once $
   flattenFunction vals ps fun === pure (StringV "hey")
   where vals = [IntV 55, IntV 65, StringV "hey"]
-        f1 = number *> number *> number
-        f2 = number *> number *> string
+        f1 = IntV <$> (number *> number *> number)
+        f2 = StringV <$> (number *> number *> string)
         fun = f2 <|> f1
 
+prop_fun_unit_nullable_1 ps = once $
+  flattenFunction vals ps fun === pure Nothing
+  where vals = [NullV, NullV, NullV]
+        fun = nullable number *> nullable string *> nullable boolean
 
+prop_fun_unit_nullable_2 ps = once $
+  flattenFunction vals ps fun === pure (Just "hey")
+  where vals = [IntV 55, StringV "hey", NullV]
+        fun = nullable number *> nullable string <* nullable boolean
+
+prop_fun_unit_nullable_3 ps = once $
+  isLeft (flattenFunction vals ps fun)
+  where vals = [IntV 55, StringV "hey"]
+        fun = nullable number *> nullable string *> nullable boolean
 
 --------------------------------------------------------------------------------
 

@@ -26,11 +26,12 @@ module BMX.Function (
   -- $vaarg
   , FunctionT
   , value
+  , nullable
+  , optional
+  , eitherA
   , string
   , number
   , boolean
-  , nullv
-  , undef
   , context
   , list
   -- * BMX
@@ -63,6 +64,8 @@ import           BMX.Data
 import           BMX.Eval (eval)
 import           BMX.Internal.Function
 
+import           P
+
 -- $vaarg
 --
 -- Helpers and decorators can take an arbitrary number of 'Value'
@@ -86,8 +89,8 @@ import           BMX.Internal.Function
 --
 -- > sum :: (Applicative m, Monad m) => Helper m
 -- > sum = helper $ do
--- >   (IntV i1) <- number
--- >   (IntV i2) <- number
+-- >   i1 <- number
+-- >   i2 <- number
 -- >   return (IntV (i1 + i2))
 --
 -- We can extend "sum" for an arbitrary-size collection of numbers
@@ -96,11 +99,12 @@ import           BMX.Internal.Function
 -- > sum :: (Applicative m, Monad m) => Helper m
 -- > sum = helper $ do
 -- >   vals <- many number
--- >   return (foldl' sumVal (IntV 0) vals)
--- >   where sumVal (IntV i1) (IntV i2) = IntV (i1 + i2)
+-- >   return . IntV $ foldl' sumVal 0 vals
 --
--- Likewise, we can apply functions like @(\<|\>)@ and 'optional' to express
--- more complicated functions.
+-- Likewise, we can apply functions like @(\<|\>)@, 'optional', and
+-- 'eitherA' to express more complicated functions. All the
+-- constructors of 'Value' are exported, and can be used with the
+-- permissive 'value' parser to build more general functions.
 --
 -- Once all argument and block parameter parsing is finished, we may
 -- wish to access the local state or evaluate one of our block
@@ -113,7 +117,7 @@ import           BMX.Internal.Function
 --
 -- > spam :: (Applicative m, Monad m) => Helper m
 -- > spam = blockHelper $ \left right -> do
--- >   _vals <- replicateM 10 (boolean <|> string)
+-- >   _vals <- replicateM 10 (eitherA boolean string)
 -- >   liftBMX $ do
 -- >      l <- eval left
 -- >      r <- eval right
