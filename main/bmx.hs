@@ -27,7 +27,7 @@ import           P
 -- done
 -- -v --version                      - dump version from BuildInfo
 -- -c --context file.json            - read context from json file
--- -v --verbose                      - dump the lexer tokens and parser tokens
+-- --verbose                         - dump the lexer tokens and parser tokens
 
 -- todo
 -- -t --template file.hbs            - read template from file (default stdin)
@@ -126,9 +126,7 @@ evalP :: Parser BMXCommand
 evalP = BMXEval <$> verbP <*> contextP
 
 verbP :: Parser Verbosity
-verbP = flag Normal Spam $
-     short 'v'
-  <> long "verbose"
+verbP = flag Normal Spam (long "verbose")
 
 contextP :: Parser (Maybe FilePath)
 contextP = optional . strOption $
