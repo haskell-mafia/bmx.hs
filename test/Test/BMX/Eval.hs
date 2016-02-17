@@ -223,6 +223,11 @@ prop_eval_unit_nested_each = once $
     ])
     === pure "ab"
 
+prop_eval_unit_hash_override = once $
+  rendersTo "{{> authorid title=title }}"
+  (testContext `usingPartials` [("authorid", partialFromTemplate [bmx| {{title}} |])])
+    === pure " My First Blog Post! "
+
 -- a dynamic partial with custom context and a hash
 prop_eval_unit_partial_dynamic = once $
   rendersTo "{{> (lookup . 'component') author arg=555}}"
