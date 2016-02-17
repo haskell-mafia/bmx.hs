@@ -215,6 +215,14 @@ prop_eval_unit_partial_hash = once $
   (testContext `usingPartials` [("authorid", testPartial)])
     === pure "The author's name is Yehuda Katz and their ID is 47 arg = 500"
 
+prop_eval_unit_nested_each = once $
+  rendersTo "{{#each foos }}{{this}}{{#each bars}}{{this}}{{/each}}{{/each}}"
+  (defaultState `usingContext` [
+      ("foos", BMXList [BMXString "a"])
+    , ("bars", BMXList [BMXString "b"])
+    ])
+    === pure "ab"
+
 -- a dynamic partial with custom context and a hash
 prop_eval_unit_partial_dynamic = once $
   rendersTo "{{> (lookup . 'component') author arg=555}}"
