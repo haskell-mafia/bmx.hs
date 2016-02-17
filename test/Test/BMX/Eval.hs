@@ -1,5 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TemplateHaskell #-}
 module Test.BMX.Eval where
 
@@ -213,6 +214,19 @@ prop_eval_unit_partial_hash = once $
   rendersTo "{{> authorid author arg=500}}"
   (testContext `usingPartials` [("authorid", testPartial)])
     === pure "The author's name is Yehuda Katz and their ID is 47 arg = 500"
+
+prop_eval_unit_nested_each = once $
+  rendersTo "{{#each foos }}{{this}}{{#each bars}}{{this}}{{/each}}{{/each}}"
+  (defaultState `usingContext` [
+      ("foos", BMXList [BMXString "a"])
+    , ("bars", BMXList [BMXString "b"])
+    ])
+    === pure "ab"
+
+prop_eval_unit_hash_override = once $
+  rendersTo "{{> authorid title=title }}"
+  (testContext `usingPartials` [("authorid", partialFromTemplate [bmx| {{title}} |])])
+    === pure " My First Blog Post! "
 
 -- a dynamic partial with custom context and a hash
 prop_eval_unit_partial_dynamic = once $

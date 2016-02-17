@@ -229,11 +229,11 @@ foldHashPairs hps k = foldl' foldFun k hps
   where
     foldFun k' (HashPair key val@(SExp _ _ _)) = do
       val' <- evalExpr val
-      withVariable key val' k'
+      redefineVariable key val' k'
     foldFun k' (HashPair key (Lit l)) = do
       val' <- valueFromLit l
       maybe (err (NoSuchValue (renderLiteral l)))
-            (\v -> withVariable key v k')
+            (\v -> redefineVariable key v k')
             val'
 
 withHash :: Monad m => Hash -> BMX m a -> BMX m a

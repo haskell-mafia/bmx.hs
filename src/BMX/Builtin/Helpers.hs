@@ -87,8 +87,8 @@ each = blockHelper $ \thenp elsep -> do
       -- Register various special variables
       index i k = withData "index" (DataValue (IntV i)) k
       stepKV (k,v) = withData "key" (DataValue (StringV k))
-        . withName par1 (StringV k) . withName par2 v . withVariable "this" v $ eval thenp
-      step v = withVariable "this" v . withName par1 v $ eval thenp
+        . withName par1 (StringV k) . withName par2 v . redefineVariable "this" v $ eval thenp
+      step v = redefineVariable "this" v . withName par1 v $ eval thenp
       frst = withData "first" (DataValue (BoolV True))
       last = withData "last" (DataValue (BoolV True))
       -- Register blockparams if they were supplied

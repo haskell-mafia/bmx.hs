@@ -10,6 +10,7 @@ module BMX.Data.Eval (
   , pushContext
   , withContext
   , withVariable
+  , redefineVariable
   , withData
   , withPartial
   , lookupValue
@@ -242,11 +243,28 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
 withVariable key UndefinedV _ = err (DefUndef key)
-withVariable key val k = noShadowing >> BMX (local (modifyContext putVar) (bmxT k))
+withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
       mv <- lookupValue (PathID key Nothing)
       maybe (return ()) (const $ err (ShadowValue key)) mv
+
+-- | Register a variable in the current context, then run some action
+-- in the 'BMX' monad.
+--
+-- The 'Context' is only changed for the duration of that action.
+--
+-- WARNING: Redefinition of existing variables is permitted
+redefineVariable ::
+     Monad m
+  => Text -- ^ The name to be bound
+  -> Value -- ^ The value the binding should point to
+  -> BMX m a -- ^ The action to run with modified 'Context'
+  -> BMX m a
+redefineVariable key UndefinedV _ = err (DefUndef key)
+redefineVariable key val k =
+  BMX (local (modifyContext putVar) (bmxT k))
+  where
     --
     putVar Nothing = Context $ M.insert key val M.empty
     putVar (Just (Context ctx)) = Context $ M.insert key val ctx
