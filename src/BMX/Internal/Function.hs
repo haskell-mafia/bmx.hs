@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Internal.Function where
 
+import           Data.Scientific (Scientific)
 import           Data.Text (Text)
 
 import           BMX.Data
@@ -23,9 +24,9 @@ string = one "string" isString
         isString _ = Nothing
 
 -- | Parse a single 'IntV'.
-number :: Monad m => FunctionT m Integer
+number :: Monad m => FunctionT m Scientific
 number = one "number" isNum
-  where isNum (IntV i) = Just i
+  where isNum (NumberV i) = Just i
         isNum _ = Nothing
 
 -- | Parse a single 'BoolV'.

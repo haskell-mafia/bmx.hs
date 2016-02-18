@@ -128,7 +128,7 @@ evalMustache l r = \case
       UndefinedV -> err (Unrenderable "undefined")
       NullV -> err (Unrenderable "null")
       s@(StringV _) -> return (renderValue s)
-      i@(IntV _) -> return (renderValue i)
+      i@(NumberV _) -> return (renderValue i)
       b@(BoolV _) -> return (renderValue b)
 
 evalBlock :: Monad m => Format -> Format -> Format -> Format
@@ -265,7 +265,7 @@ valueFromLit :: Monad m => Literal -> BMX m (Maybe Value)
 valueFromLit = \case
   NullL -> val NullV
   BooleanL b -> val (BoolV b)
-  NumberL i -> val (IntV i)
+  NumberL i -> val (NumberV (realToFrac i))
   StringL s -> val (StringV s)
   PathL p -> lookupValue p
   DataL p -> do
