@@ -27,7 +27,6 @@ rendersTo input st = bimap renderBMXError renderPage
 
 escapeText = T.toStrict . B.renderHtml . B.toHtml
 
-tshow = T.pack . show
 mustache t = "{{" <> t <> "}}"
 single n v = defaultState `usingContext` [(n, v)]
 
@@ -78,7 +77,7 @@ prop_eval_mustache_string_unescaped t = validString t ==> forAll simpleId $ \n -
 
 -- any valid number invoked in a mustache should render to itself
 prop_eval_mustache_number i = forAll simpleId $ \n ->
-  rendersTo (mustache n) (single n (BMXNum i)) === pure (tshow i)
+  rendersTo (mustache n) (single n (BMXNum i)) === pure (renderValue (NumberV i))
 
 -- both bools
 prop_eval_mustache_bool_true = forAll simpleId $ \n ->

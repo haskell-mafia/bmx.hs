@@ -77,7 +77,7 @@ each = blockHelper $ \thenp elsep -> do
       loop = either eachList eachMap iter
       -- Separate iteration cases for context and list
       eachMap c = indices 0 (fmap stepKV (contextToList c))
-      eachList l = zipWith listIdx [0..] (indices 0 (fmap step l))
+      eachList l = zipWith listIdx ([0..] :: [Integer]) (indices 0 (fmap step l))
       -- Apply indices, first and last markers to each action
       indices 0 (k:[]) = [(index 0 . frst . last) k]
       indices 0 (k:ks@(_:_)) = index 0 (frst k) : indices 1 ks
@@ -85,7 +85,7 @@ each = blockHelper $ \thenp elsep -> do
       indices n (k:[]) = [index n (last k)]
       indices _ [] = []
       -- Register various special variables
-      index i k = withData "index" (DataValue (IntV i)) k
+      index i k = withData "index" (DataValue (NumberV (realToFrac (i :: Integer)))) k
       stepKV (k,v) = withData "key" (DataValue (StringV k))
         . withName par1 (StringV k) . withName par2 v . redefineVariable "this" v $ eval thenp
       step v = redefineVariable "this" v . withName par1 v $ eval thenp
@@ -94,5 +94,5 @@ each = blockHelper $ \thenp elsep -> do
       -- Register blockparams if they were supplied
       withName Nothing _ k = k
       withName (Just (Param n)) v k = withVariable n v k
-      listIdx i k = withName par2 (IntV i) k
+      listIdx i k = withName par2 (NumberV (realToFrac i)) k
   liftBMX go

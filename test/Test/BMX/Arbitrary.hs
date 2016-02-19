@@ -44,7 +44,7 @@ ctxPairs = (,) <$> simpleId <*> genVal 4
 genVal 0 = oneof [
     pure NullV
   , pure UndefinedV
-  , IntV <$> arbitrary
+  , NumberV <$> arbitrary
   , StringV <$> arbitrary
   , BoolV <$> arbitrary
   ]
@@ -60,7 +60,7 @@ instance Arbitrary BMXValue where
     where
       unbox :: Value -> BMXValue
       unbox = \case
-        IntV i -> BMXNum i
+        NumberV i -> BMXNum i
         StringV s -> BMXString s
         BoolV b -> BMXBool b
         NullV -> BMXNull

@@ -16,6 +16,7 @@ module BMX.Data.Value (
 
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import           Data.Scientific (Scientific, floatingOrInteger)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -33,7 +34,7 @@ instance Monoid Context where
 -- Not to be confused with user-provided 'BMXValue'.
 data Value
   = StringV Text
-  | IntV Integer
+  | NumberV Scientific
   | BoolV Bool
   | NullV
   | UndefinedV
@@ -58,7 +59,7 @@ truthy = \case
   NullV -> False
   UndefinedV -> False
   StringV t -> not (T.null t)
-  IntV i -> i /= 0
+  NumberV i -> i /= 0
   ContextV c -> c /= mempty
   ListV l -> not (null l)
 
@@ -68,7 +69,7 @@ falsey = not . truthy
 renderValue :: Value -> Text
 renderValue = \case
   StringV t -> t
-  IntV i -> T.pack (show i)
+  NumberV i -> T.pack $ either show show (floatingOrInteger i :: Either Double Integer)
   BoolV b -> if b then "true" else "false"
   NullV -> "null"
   UndefinedV -> "undefined"
@@ -78,7 +79,7 @@ renderValue = \case
 renderValueType :: Value -> Text
 renderValueType = \case
   StringV _ -> "string"
-  IntV _ -> "number"
+  NumberV _ -> "number"
   BoolV _ -> "boolean"
   NullV -> "null"
   UndefinedV -> "undefined"

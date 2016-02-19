@@ -27,7 +27,7 @@ import           BMX.Data.Value as X
 import qualified Data.HashMap.Strict as H
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
-import           Data.Scientific (toBoundedInteger)
+import           Data.Scientific (Scientific)
 import           Data.Text (Text)
 import           X.Data.Aeson ((.=), object)
 import qualified X.Data.Aeson as A
@@ -60,7 +60,7 @@ instance Monoid (BMXState m) where
 -- | User-provided data, to be packed into a 'Context' and used for rendering.
 data BMXValue
   = BMXString !Text
-  | BMXNum !Integer
+  | BMXNum !Scientific
   | BMXBool !Bool
   | BMXContext ![(Text, BMXValue)]
   | BMXList ![BMXValue]
@@ -84,7 +84,7 @@ valueFromJSON val = case val of
   o@(A.Object _) -> BMXContext <$> contextFromJSON o
   A.String t -> pure (BMXString t)
   A.Bool b -> pure (BMXBool b)
-  A.Number i -> maybe mzero (pure . BMXNum . fromIntegral) (toBoundedInteger i :: Maybe Int64)
+  A.Number i -> pure (BMXNum i)
   A.Array a -> BMXList . toList <$> mapM valueFromJSON a
   A.Null -> pure BMXNull
 
@@ -146,7 +146,7 @@ boxContext c = do
 rebox :: BMXValue -> Either BMXError Value
 rebox v = case v of
   BMXString t -> pure (StringV t)
-  BMXNum i -> pure (IntV i)
+  BMXNum i -> pure (NumberV i)
   BMXBool b -> pure (BoolV b)
   BMXNull -> pure NullV
   BMXList ls -> ListV <$> mapM rebox ls
