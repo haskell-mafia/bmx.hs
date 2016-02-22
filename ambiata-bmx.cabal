@@ -48,10 +48,10 @@ library
                        BMX.Builtin.Debug
                        BMX.Builtin.Decorators
                        BMX.Builtin.Helpers
+                       BMX.Debug
                        BMX.Function
 
                        -- Guts
-                       BMX.Debug
                        BMX.Eval
                        BMX.Eval.Function
                        BMX.Lexer

@@ -1,4 +1,6 @@
-{-| The collection of builtin helpers, included in the default environment. -}
+{-| The collection of builtin helpers, included in the default environment.
+    Helpers here should be compatible with Handlebars.
+ -}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Builtin.Helpers where

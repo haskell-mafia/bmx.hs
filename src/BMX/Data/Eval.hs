@@ -39,6 +39,7 @@ module BMX.Data.Eval (
   , runBMXT
   , err
   , bmxError
+  , readContext
   ) where
 
 import           Control.Monad.Identity
@@ -81,6 +82,13 @@ runBMXT st = (`runReaderT` st) . runEitherT . bmxT
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left
+
+readContext :: Monad m => BMX m (Maybe Context)
+readContext = BMX $ ask >>= \es -> do
+  let ctx = evalContext es
+  return $ case ctx of
+    c:_ -> Just c
+    [] -> Nothing
 
 -- -----------------------------------------------------------------------------
 -- User-facing abstract types for Helper, Partial and Decorator, plus
