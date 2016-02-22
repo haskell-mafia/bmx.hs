@@ -85,9 +85,7 @@ err = BMX . left
 readContext :: Monad m => BMX m (Maybe Context)
 readContext = BMX $ ask >>= \es -> do
   let ctx = evalContext es
-  return $ case ctx of
-    c:_ -> Just c
-    [] -> Nothing
+  return $ listToMaybe ctx
 
 -- -----------------------------------------------------------------------------
 -- User-facing abstract types for Helper, Partial and Decorator, plus
