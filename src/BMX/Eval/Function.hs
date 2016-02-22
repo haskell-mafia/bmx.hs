@@ -1,7 +1,24 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module BMX.Eval.Function where
+module BMX.Eval.Function (
+  -- * Arg parsers
+    value
+  , string
+  , number
+  , boolean
+  , context
+  , list
+  , nullable
+  , nullv
+  , undef
+  -- * Running BMX functions
+  , runHelper
+  , runBlockHelper
+  , runPartial
+  , withDecorator
+  , withBlockDecorator
+  ) where
 
 import           Data.Scientific (Scientific)
 import           Data.Text (Text)

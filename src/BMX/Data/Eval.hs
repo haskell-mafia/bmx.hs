@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK not-home #-}
 module BMX.Data.Eval (
   -- * Evaluation state and abstract functions over it
     EvalState (..)
