@@ -37,6 +37,7 @@ module BMX.Data.Eval (
   , runBMX
   , runBMXT
   , err
+  , bmxError
   ) where
 
 import           Control.Monad.Identity
@@ -385,6 +386,7 @@ data EvalError
   | ShadowHelper !Text -- ^ Attempt to redefine a helper
   | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
   | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
+  | UserError !Text -- ^ Custom error thrown from a helper.
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -404,3 +406,8 @@ renderEvalError = \case
   ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
   ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
   DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
+  UserError t -> "Error thrown in user code: " <> t
+
+-- | Throw an error inside a 'BMX' action, with custom message.
+bmxError :: Monad m => Text -> BMX m a
+bmxError = err . UserError

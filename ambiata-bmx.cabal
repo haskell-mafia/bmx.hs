@@ -42,6 +42,7 @@ library
                        src
 
   exposed-modules:
+                       -- API
                        BMX
                        BMX.Builtin
                        BMX.Builtin.Debug
@@ -49,15 +50,15 @@ library
                        BMX.Builtin.Helpers
                        BMX.Function
 
-                       BMX.Internal
-
-  other-modules:
+                       -- Guts
                        BMX.Debug
                        BMX.Eval
+                       BMX.Eval.Function
                        BMX.Lexer
                        BMX.Parser
                        BMX.TH
 
+                       -- Data
                        BMX.Data
                        BMX.Data.AST
                        BMX.Data.Error
@@ -68,7 +69,6 @@ library
                        BMX.Data.Token                       
                        BMX.Data.Value
 
-                       BMX.Internal.Function
                        Paths_ambiata_bmx
 
 executable bmx

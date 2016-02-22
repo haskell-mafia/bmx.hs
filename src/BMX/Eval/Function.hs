@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module BMX.Internal.Function where
+module BMX.Eval.Function where
 
 import           Data.Scientific (Scientific)
 import           Data.Text (Text)

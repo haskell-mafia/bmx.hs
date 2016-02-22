@@ -9,7 +9,9 @@ import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
-import           BMX.Internal
+import           BMX
+import           BMX.Data.Token
+import           BMX.Lexer (tokenise)
 
 import           Test.BMX.Arbitrary ()
 

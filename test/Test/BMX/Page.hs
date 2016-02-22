@@ -6,7 +6,7 @@ module Test.BMX.Page where
 import Data.Text ()
 import Test.QuickCheck
 
-import BMX.Internal
+import BMX.Data
 
 import Test.BMX.Arbitrary ()
 

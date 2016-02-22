@@ -16,7 +16,7 @@ import qualified Data.Text as T
 import           System.IO (IO)
 
 import           BMX.Data
-import           BMX.Internal.Function
+import           BMX.Eval.Function
 
 import           P
 

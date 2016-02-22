@@ -37,6 +37,7 @@ module BMX.Function (
   -- * BMX
   , BMX
   , eval
+  , bmxError
   , liftBMX
   -- ** Changing stuff
   , withVariable
@@ -62,7 +63,7 @@ module BMX.Function (
 
 import           BMX.Data
 import           BMX.Eval (eval)
-import           BMX.Internal.Function
+import           BMX.Eval.Function
 
 import           P
 

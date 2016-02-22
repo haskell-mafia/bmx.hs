@@ -20,7 +20,7 @@ import           X.Data.Aeson (asTextWith, asWith)
 import           X.Options.Applicative
 
 import           BMX
-import           BMX.Internal
+import           BMX.Lexer (tokenise)
 
 import           P
 
