@@ -66,6 +66,7 @@ library
                        BMX.Data.Format
                        BMX.Data.Function
                        BMX.Data.Page
+                       BMX.Data.Position
                        BMX.Data.Token                       
                        BMX.Data.Value
 
