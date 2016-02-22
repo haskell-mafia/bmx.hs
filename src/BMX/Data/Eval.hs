@@ -13,6 +13,7 @@ module BMX.Data.Eval (
   , redefineVariable
   , withData
   , withPartial
+  , lookupValueByPath
   , lookupValue
   , lookupData
   , lookupHelper
@@ -247,7 +248,7 @@ withVariable key UndefinedV _ = err (DefUndef key)
 withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
-      mv <- lookupValue (PathID key Nothing)
+      mv <- lookupValue key
       maybe (return ()) (const $ err (ShadowValue key)) mv
 
 -- | Register a variable in the current context, then run some action
@@ -301,9 +302,9 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
 -- | Look up a 'Value' in the current 'Context'.
-lookupValue :: Monad m => Path -> BMX m (Maybe Value)
+lookupValueByPath :: Monad m => Path -> BMX m (Maybe Value)
 -- FIX replace Path with some public type - probably Text
-lookupValue i = BMX $ ask >>= (bmxT . go i . evalContext)
+lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -339,6 +340,13 @@ lookupValue i = BMX $ ask >>= (bmxT . go i . evalContext)
     vrest = \case
       PathID _ r -> r
       PathSeg _ r -> r
+
+-- | Look up a 'Value' in the current 'Context', without traversing any path boundary.
+lookupValue :: Monad m => Text -> BMX m (Maybe Value)
+lookupValue t = BMX $ ask >>= (bmxT . go . evalContext)
+  where
+    go ((Context c):_) = return $ M.lookup t c
+    go [] = return $ Nothing
 
 -- | Look up a 'DataVar' in the current environment.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))

@@ -10,8 +10,6 @@ module BMX.Data.Value (
   , contextToList
   , renderValue
   , renderValueType
-  , truthy
-  , falsey
   ) where
 
 import           Data.Map.Strict (Map)
@@ -52,19 +50,6 @@ contextToList (Context c) = M.toList c
 -- | Construct a @Context@ from an association list.
 contextFromList :: [(Text, Value)] -> Context
 contextFromList = Context . M.fromList
-
-truthy :: Value -> Bool
-truthy = \case
-  BoolV b -> b
-  NullV -> False
-  UndefinedV -> False
-  StringV t -> not (T.null t)
-  NumberV i -> i /= 0
-  ContextV c -> c /= mempty
-  ListV l -> not (null l)
-
-falsey :: Value -> Bool
-falsey = not . truthy
 
 renderValue :: Value -> Text
 renderValue = \case

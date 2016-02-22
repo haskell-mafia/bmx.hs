@@ -5,8 +5,8 @@ module BMX.Builtin.Helpers where
 
 import           Data.List (zipWith)
 import           Data.Text (Text)
+import qualified Data.Text as T
 
-import           BMX.Data
 import           BMX.Function
 
 import           P hiding (log, unless)
@@ -55,7 +55,7 @@ lookup = helper $ do
   ctx <- context
   str <- string
   liftBMX $ do
-    mv <- withContext ctx (lookupValue (PathID str Nothing))
+    mv <- withContext ctx (lookupValue str)
     return (fromMaybe UndefinedV mv)
 
 -- | The "each" helper. Takes an iterable value (a context or a list),
@@ -96,3 +96,16 @@ each = blockHelper $ \thenp elsep -> do
       withName (Just (Param n)) v k = withVariable n v k
       listIdx i k = withName par2 (NumberV (realToFrac i)) k
   liftBMX go
+
+truthy :: Value -> Bool
+truthy v = case v of
+  BoolV b -> b
+  NullV -> False
+  UndefinedV -> False
+  StringV t -> not (T.null t)
+  NumberV i -> i /= 0
+  ContextV c -> c /= mempty
+  ListV l -> not (null l)
+
+falsey :: Value -> Bool
+falsey = not . truthy
