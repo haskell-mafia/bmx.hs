@@ -1,13 +1,22 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.Position (
     SrcInfo (..)
   , Position (..)
   , Positioned (..)
+  , depo
   , (<@@)
   , (@@>)
+  , between
+  , renderPosition
+  , renderSrcInfo
   ) where
+
+import           Data.Data
+import           Data.Text (Text)
+import qualified Data.Text as T
 
 import           P
 
@@ -15,32 +24,58 @@ import           P
 data Position = Position {
     posLine :: !Int
   , posColumn :: !Int
-  } deriving (Eq, Ord, Show)
+  } deriving (Data, Eq, Ord, Show)
+
+emptyPosition :: Position
+emptyPosition = Position 0 0
+
+renderPosition :: Position -> Text
+renderPosition pos = "Line " <> tshow (posLine pos) <> ", Col " <> tshow (posColumn pos)
 
 -- | A range in the source file.
 data SrcInfo = SrcInfo {
     leadingPosition :: !Position
   , trailingPosition :: !Position
-  } deriving (Eq, Ord, Show)
+  } deriving (Data, Eq, Ord, Show)
 
-combine :: SrcInfo -> SrcInfo -> SrcInfo
-combine a b = SrcInfo {
-    leadingPosition = leadingPosition a
-  , trailingPosition = trailingPosition b
-  }
+instance Monoid SrcInfo where
+  mempty = SrcInfo emptyPosition emptyPosition
+  mappend a b = SrcInfo (leadingPosition a) (trailingPosition b)
+
+renderSrcInfo :: SrcInfo -> Text
+renderSrcInfo srci = renderPosition (leadingPosition srci)
+  <> " -- " <> renderPosition (trailingPosition srci)
 
 -- | A value and character range pair
 data Positioned a = !a :@ !SrcInfo
-  deriving (Eq, Ord, Show)
+  deriving (Data, Eq, Ord, Show)
+
+instance Monoid a => Monoid (Positioned a) where
+  mempty = mempty :@ mempty
+  mappend (a :@ la) (b :@ lb) = (a <> b) :@ (la <> lb)
 
 instance Functor Positioned where
   fmap f (x :@ info) = f x :@ info
   x <$ (_ :@ info) = x :@ info
 
--- Absorb the item to the right
-(<@@) :: Positioned a -> Positioned b -> Positioned a
-(x :@ i) <@@ (_ :@ j) = x :@ (i `combine` j)
+instance Applicative Positioned where
+  (a :@ la) <*> (b :@ lb) = (a b) :@ (la <> lb)
+  pure a = a :@ mempty
 
--- Absorb the item to the left
+-- | Strip position information
+depo :: Positioned a -> a
+depo (a :@ _) = a
+
+-- | Absorb the item to the right
+(<@@) :: Positioned a -> Positioned b -> Positioned a
+(x :@ i) <@@ (_ :@ j) = x :@ (i <> j)
+
+-- | Absorb the item to the left
 (@@>) :: Positioned a -> Positioned b -> Positioned b
-(_ :@ i) @@> (y :@ j) = y :@ (i `combine` j)
+(_ :@ i) @@> (y :@ j) = y :@ (i <> j)
+
+between :: Positioned a -> Positioned b -> SrcInfo
+between (_ :@ la) (_ :@ lb) = la <> lb
+
+tshow :: Show a => a -> Text
+tshow = T.pack . show
