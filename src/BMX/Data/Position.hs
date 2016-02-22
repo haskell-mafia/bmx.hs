@@ -30,7 +30,7 @@ combine a b = SrcInfo {
   }
 
 -- | A value and character range pair
-data Positioned a = !a :@ SrcInfo
+data Positioned a = !a :@ !SrcInfo
   deriving (Eq, Ord, Show)
 
 instance Functor Positioned where
