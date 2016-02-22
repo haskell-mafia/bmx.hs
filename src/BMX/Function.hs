@@ -20,6 +20,7 @@ module BMX.Function (
   -- * Values
   , Value (..)
   , Context (..)
+  , Param (..)
   -- * Data variables
   , DataVar (..)
   -- * Argument parsers
@@ -34,12 +35,15 @@ module BMX.Function (
   , boolean
   , context
   , list
+  , param
   -- * BMX
   , BMX
   , eval
+  , bmxError
   , liftBMX
   -- ** Changing stuff
   , withVariable
+  , redefineVariable
   , withContext
   , withData
   , withPartial
@@ -62,7 +66,7 @@ module BMX.Function (
 
 import           BMX.Data
 import           BMX.Eval (eval)
-import           BMX.Internal.Function
+import           BMX.Eval.Function
 
 import           P
 

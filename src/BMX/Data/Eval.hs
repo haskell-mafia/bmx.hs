@@ -3,7 +3,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK not-home #-}
 module BMX.Data.Eval (
   -- * Evaluation state and abstract functions over it
     EvalState (..)
@@ -13,6 +12,7 @@ module BMX.Data.Eval (
   , redefineVariable
   , withData
   , withPartial
+  , lookupValueByPath
   , lookupValue
   , lookupData
   , lookupHelper
@@ -37,6 +37,8 @@ module BMX.Data.Eval (
   , runBMX
   , runBMXT
   , err
+  , bmxError
+  , readContext
   ) where
 
 import           Control.Monad.Identity
@@ -79,6 +81,11 @@ runBMXT st = (`runReaderT` st) . runEitherT . bmxT
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left
+
+readContext :: Monad m => BMX m (Maybe Context)
+readContext = BMX $ ask >>= \es -> do
+  let ctx = evalContext es
+  return $ listToMaybe ctx
 
 -- -----------------------------------------------------------------------------
 -- User-facing abstract types for Helper, Partial and Decorator, plus
@@ -246,7 +253,7 @@ withVariable key UndefinedV _ = err (DefUndef key)
 withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
-      mv <- lookupValue (PathID key Nothing)
+      mv <- lookupValue key
       maybe (return ()) (const $ err (ShadowValue key)) mv
 
 -- | Register a variable in the current context, then run some action
@@ -300,9 +307,9 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
 -- | Look up a 'Value' in the current 'Context'.
-lookupValue :: Monad m => Path -> BMX m (Maybe Value)
+lookupValueByPath :: Monad m => Path -> BMX m (Maybe Value)
 -- FIX replace Path with some public type - probably Text
-lookupValue i = BMX $ ask >>= (bmxT . go i . evalContext)
+lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
     go _ [] = return Nothing
@@ -338,6 +345,13 @@ lookupValue i = BMX $ ask >>= (bmxT . go i . evalContext)
     vrest = \case
       PathID _ r -> r
       PathSeg _ r -> r
+
+-- | Look up a 'Value' in the current 'Context', without traversing any path boundary.
+lookupValue :: Monad m => Text -> BMX m (Maybe Value)
+lookupValue t = BMX $ ask >>= (bmxT . go . evalContext)
+  where
+    go ((Context c):_) = return $ M.lookup t c
+    go [] = return $ Nothing
 
 -- | Look up a 'DataVar' in the current environment.
 lookupData :: Monad m => DataPath -> BMX m (Maybe (DataVar m))
@@ -385,6 +399,7 @@ data EvalError
   | ShadowHelper !Text -- ^ Attempt to redefine a helper
   | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
   | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
+  | UserError !Text -- ^ Custom error thrown from a helper.
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
@@ -404,3 +419,8 @@ renderEvalError = \case
   ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
   ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
   DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
+  UserError t -> "Error thrown in user code: " <> t
+
+-- | Throw an error inside a 'BMX' action, with custom message.
+bmxError :: Monad m => Text -> BMX m a
+bmxError = err . UserError

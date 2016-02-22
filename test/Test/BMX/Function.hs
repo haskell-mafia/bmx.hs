@@ -7,8 +7,9 @@ import           Control.Monad.Identity (Identity)
 import           Data.Text (Text)
 import           Test.QuickCheck
 
+import           BMX.Data
 import           BMX.Function
-import           BMX.Internal
+import           BMX.Eval.Function
 
 import           Test.BMX.Arbitrary ()
 

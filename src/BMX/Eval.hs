@@ -1,7 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_HADDOCK hide #-}
 module BMX.Eval (
     eval
   , partialFromTemplate
@@ -16,7 +15,7 @@ import qualified Data.Text as T
 import           System.IO (IO)
 
 import           BMX.Data
-import           BMX.Internal.Function
+import           BMX.Eval.Function
 
 import           P
 
@@ -267,7 +266,7 @@ valueFromLit = \case
   BooleanL b -> val (BoolV b)
   NumberL i -> val (NumberV (realToFrac i))
   StringL s -> val (StringV s)
-  PathL p -> lookupValue p
+  PathL p -> lookupValueByPath p
   DataL p -> do
     md <- lookupData p
     return (md >>= dataVal)

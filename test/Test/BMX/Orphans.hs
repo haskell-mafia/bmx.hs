@@ -11,7 +11,7 @@ import           Data.Data
 import qualified Data.Text as T
 import           GHC.Generics
 
-import           BMX.Internal
+import           BMX.Data
 
 import           P
 

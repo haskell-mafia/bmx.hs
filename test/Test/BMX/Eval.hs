@@ -15,7 +15,7 @@ import qualified Text.Blaze.Html.Renderer.Text as B
 import           X.Data.Aeson (parseEither)
 
 import           BMX
-import           BMX.Internal
+import           BMX.Data
 
 import           Test.BMX.Arbitrary
 
@@ -284,33 +284,16 @@ testContext = defaultState `usingContext` [
   ]
 
 testPartial = partialFromTemplate $
-  Template
-    [ ContentStmt "The author's name is "
-    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))
-    , ContentStmt " and their ID is "
-    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "id" Nothing)) [] (Hash []))
-    , ContentStmt " arg = "
-    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "arg" Nothing)) [] (Hash []))
-    ]
+  [bmx|The author's name is {{name}} and their ID is {{id}} arg = {{arg}}|]
 
 testPartial' = partialFromTemplate $
-  Template
-    [ ContentStmt "The author's name is "
-    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "name" Nothing)) [] (Hash []))
-    , ContentStmt " and their ID is "
-    , Mustache (Fmt Verbatim Verbatim) (SExp (PathL (PathID "id" Nothing)) [] (Hash []))
-    ]
+  [bmx|The author's name is {{name}} and their ID is {{id}}|]
 
 simplePartial = partialFromTemplate $
-  Template
-    [ ContentStmt "They got those chewy pretzels"
-    ]
+  [bmx|They got those chewy pretzels|]
 
 testPartialBlock = partialFromTemplate $
-  Template
-    [ ContentStmt "block = "
-    , PartialStmt (Fmt Verbatim Verbatim) (Lit (DataL (DataPath (PathID "partial-block" Nothing)))) Nothing (Hash [])
-    ]
+  [bmx|block = {{>@partial-block}}|]
 
 -- -----------------------------------------------------------------------------
 

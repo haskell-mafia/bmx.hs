@@ -8,6 +8,9 @@
 -- functions) can be extended or replaced by the user.
 
 module BMX (
+  -- * Usage
+  -- $usage
+
   -- * Differences from Handlebars
   -- $whatsnew
 
@@ -72,16 +75,24 @@ import           BMX.Eval (renderTemplate, renderTemplateM, renderTemplateIO, pa
 import           BMX.Parser (templateFromText)
 import           BMX.TH (bmx, templateFile, partialFile, partialDir)
 
+-- $usage
+--
+-- To load and render 'Templates', import the @BMX@ module.
+--
+-- To define custom helpers, partials, or decorators, import @BMX.Function@.
+--
+-- All other modules are internal, and should not be depended upon.
+
 -- $whatsnew
 --
 -- BMX is considerably stricter than Handlebars. A number
 -- of error-prone constructs that Handlebars accepts will result in a 'BMXError':
 --
 -- * Any attempt to print @undefined@, @null@, a list, or a 'Context'
--- (object) will result in an error.
+-- (object) will result in an error. Failed lookups will not render as
+-- empty strings. Use `if` or `unless` explicitly instead.
 --
--- * Any attempt to redefine (shadow) a variable, helper, partial, or
--- decorator will result in an error.
+-- * Shadowing is restricted.
 --
 -- * Heavy restrictions on mutable state. Updates are restricted to
 -- the current scope.

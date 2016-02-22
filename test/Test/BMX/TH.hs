@@ -11,7 +11,7 @@ import Data.Text (Text)
 import Test.QuickCheck
 
 import BMX
-import BMX.Internal
+import BMX.Data
 
 import Test.BMX.Arbitrary ()
 

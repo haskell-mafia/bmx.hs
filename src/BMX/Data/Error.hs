@@ -1,7 +1,12 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
-module BMX.Data.Error where
+module BMX.Data.Error (
+    BMXError (..)
+  , renderBMXError
+  , LexError (..)
+  , ParseError (..)
+  ) where
 
 import Data.Text (Text)
 
