@@ -307,7 +307,7 @@ undef :: Parser Token
 undef = try $ string "undefined" *> pure Undefined
 
 null :: Parser Token
-null = try $ string "null" *> pure Null
+null = try $ string "null" *> lookAhead literalLookAhead *> pure Null
 
 openBlockParams :: Parser Token
 openBlockParams = try $ string "as" *> many1 space *> string "|" *> pure OpenBlockParams
