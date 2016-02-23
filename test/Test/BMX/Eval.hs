@@ -266,6 +266,16 @@ prop_eval_unit_options_bleed_block = once . isLeft $
 prop_eval_unit_options_bleed_helper = once . isLeft $
   rendersTo "{{ lookup . 'foo' foo='bar' }}" mempty
 
+prop_eval_unit_with_param = once $
+  rendersTo "{{# with author as |jim|}}{{jim.id}}{{/with}}" testContext
+    === pure "47"
+
+prop_eval_unit_with_nullable = once $
+  rendersTo "{{# with nullable }}abcdefg{{/with}}" testContext
+    === pure T.empty
+
+-- -----------------------------------------------------------------------------
+
 testContext :: BMXState Identity
 testContext = defaultState `usingContext` [
     ("title", BMXString "My First Blog Post!")
@@ -281,6 +291,7 @@ testContext = defaultState `usingContext` [
   , ("body", BMXString "My first post. Wheeeee!")
   , ("html", BMXString "<a href=\"google.com\">Cool Site</a>")
   , ("component", BMXString "authorid")
+  , ("nullable", BMXNull)
   ]
 
 testPartial = partialFromTemplate $

@@ -120,5 +120,8 @@ prop_lex_segid_simple = once $
 prop_lex_segid_number = once $
   tokenise "{{ [10] }}" === Right [Open Verbatim, SegmentID "10", Close Verbatim]
 
+prop_lex_nullable_id = once $
+  tokenise "{{ nullable }}" === Right [ Open Verbatim, ID "nullable", Close Verbatim ]
+
 return []
 tests = $quickCheckAll

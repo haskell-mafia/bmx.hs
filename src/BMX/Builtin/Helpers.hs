@@ -44,10 +44,11 @@ unless = blockHelper $ \thenp elsep -> do
 -- | The "with" block helper. Accept a Context as argument.
 with :: (Applicative m, Monad m) => Helper m
 with = blockHelper $ \thenp elsep -> do
-  ctx <- optional context
+  ctx <- nullable context
+  name <- optional param
   liftBMX $ maybe
     (eval elsep)
-    (\c -> withContext c (eval thenp))
+    (\c -> withContext c . withName name (ContextV c) $ eval thenp)
     ctx
 
 -- | The "lookup" helper. Takes a context and a string, and looks up a
@@ -94,10 +95,12 @@ each = blockHelper $ \thenp elsep -> do
       frst = withData "first" (DataValue (BoolV True))
       last = withData "last" (DataValue (BoolV True))
       -- Register blockparams if they were supplied
-      withName Nothing _ k = k
-      withName (Just (Param n)) v k = withVariable n v k
       listIdx i k = withName par2 (NumberV (realToFrac i)) k
   liftBMX go
+
+withName :: (Applicative m, Monad m) => Maybe Param -> Value -> BMX m a -> BMX m a
+withName Nothing _ k = k
+withName (Just (Param n)) v k = withVariable n v k
 
 truthy :: Value -> Bool
 truthy v = case v of
