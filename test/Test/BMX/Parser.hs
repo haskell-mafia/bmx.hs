@@ -18,7 +18,7 @@ import           P
 
 --------------------------------------------------------------------------------
 
-prop_parse_roundtrip p = trippingOn decontextualise templateToText templateFromText (decontextualise p)
+prop_parse_roundtrip p = trippingOn decontextualise templateToText templateFromText p
 
 --------------------------------------------------------------------------------
 -- dopey regression tests - the stuff that's easy to break

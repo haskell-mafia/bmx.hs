@@ -32,6 +32,10 @@ prop_lex_content = once $
   let str = T.pack ['A'..'z']
   in tokenise str === Right [Content str]
 
+prop_lex_empty_comment = once $
+  tokenise "{{!}}"
+    === Right [OpenComment Verbatim, Comment T.empty, Close Verbatim]
+
 prop_lex_comment = once $
   tokenise "{{! inline comment }}"
     === Right [OpenComment Verbatim, Comment " inline comment ", Close Verbatim]

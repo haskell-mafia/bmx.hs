@@ -119,7 +119,7 @@ blockComment lf@(f :@ _) = do
 shortComment :: Positioned Format -> Parser [Positioned Token]
 shortComment f = do
   _   <- try $ char '!'
-  com <- withPos $ T.pack <$> manyTill notNull (try close)
+  com <- withPos $ T.pack <$> manyTill notNull (lookAhead (try close))
   -- Spec has no rstrip here
   c <- withPos close
   pure [fmap OpenComment f, fmap Comment com, Close Verbatim <$ c]

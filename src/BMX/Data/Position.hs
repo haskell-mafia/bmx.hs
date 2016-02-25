@@ -14,7 +14,7 @@ module BMX.Data.Position (
   , renderSrcInfo
   ) where
 
-import           Data.Data
+import           Data.Data (Data, Typeable)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
@@ -24,7 +24,7 @@ import           P
 data Position = Position {
     posLine :: !Int
   , posColumn :: !Int
-  } deriving (Data, Eq, Ord, Show)
+  } deriving (Data, Eq, Ord, Show, Typeable)
 
 emptyPosition :: Position
 emptyPosition = Position 0 0
@@ -36,7 +36,7 @@ renderPosition pos = "Line " <> tshow (posLine pos) <> ", Col " <> tshow (posCol
 data SrcInfo = SrcInfo {
     leadingPosition :: !Position
   , trailingPosition :: !Position
-  } deriving (Data, Eq, Ord, Show)
+  } deriving (Data, Eq, Ord, Show, Typeable)
 
 instance Monoid SrcInfo where
   mempty = SrcInfo emptyPosition emptyPosition
@@ -48,7 +48,7 @@ renderSrcInfo srci = renderPosition (leadingPosition srci)
 
 -- | A value and character range pair
 data Positioned a = !a :@ !SrcInfo
-  deriving (Data, Eq, Ord, Show)
+  deriving (Data, Eq, Ord, Show, Typeable)
 
 instance Monoid a => Monoid (Positioned a) where
   mempty = mempty :@ mempty

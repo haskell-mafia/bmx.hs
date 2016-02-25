@@ -355,7 +355,7 @@ literal :: { Positioned Literal }:
   | undef                            {% Left undefError } -- FIX throw located error
 
 path :: { Positioned Path }:
-    ident sep path                   { (\seg sep rest -> PathSeg seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
+    ident sep path                   { (\seg sep rest -> PathID seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
   | ident                            { (\seg -> PathID seg Nothing) <\$> $1 }
   | segment_id sep path              { (\seg sep rest -> PathSeg seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
   | segment_id                       { fmap (\s -> PathSeg s Nothing) $1 }
@@ -392,7 +392,7 @@ parseError :: [Positioned Token] -> Either ParseError a
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
 prg :: [Positioned Stmt] -> Positioned Template
-prg sts = Template sts :@ listLoc sts
+prg sts = Template (reverse sts) :@ listLoc sts
 
 fmt :: Positioned Format -> Positioned Format -> Fmt
 fmt a b = Fmt (depo a) (depo b)
