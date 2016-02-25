@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -41,96 +42,96 @@ instance Monoid Template where
 
 data Stmt
   = Mustache
-      Fmt
-      (Positioned Expr)
+      !Fmt
+      !(Positioned Expr)
 
   | MustacheUnescaped
-      Fmt
-      (Positioned Expr)
+      !Fmt
+      !(Positioned Expr)
 
   | PartialStmt
-      Fmt
-      (Positioned Expr)
-      (Maybe (Positioned Expr))
-      (Positioned Hash)
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned Expr))
+      !(Positioned Hash)
 
   | PartialBlock
-      Fmt
-      Fmt
-      (Positioned Expr)
-      (Maybe (Positioned Expr))
-      (Positioned Hash)
-      (Positioned Template)
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned Expr))
+      !(Positioned Hash)
+      !(Positioned Template)
 
   | Block
-      Fmt
-      Fmt
-      (Positioned Expr)
-      (Maybe (Positioned BlockParams))
-      (Positioned Template)
-      (Positioned Template)
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
 
   | Inverse
-      Fmt
-      (Positioned Template)
+      !Fmt
+      !(Positioned Template)
 
   | InverseChain
-      Fmt
-      (Positioned Expr)
-      (Maybe (Positioned BlockParams))
-      (Positioned Template)
-      (Positioned Template)
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
 
   | InverseBlock
-      Fmt
-      Fmt
-      (Positioned Expr)
-      (Maybe (Positioned BlockParams))
-      (Positioned Template)
-      (Positioned Template)
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
 
   | RawBlock
-      (Positioned Expr)
-      (Positioned Text)
+      !(Positioned Expr)
+      !(Positioned Text)
 
   | ContentStmt
-      (Positioned Text)
+      !(Positioned Text)
 
   | CommentStmt
-      Fmt
-      (Positioned Text)
+      !Fmt
+      !(Positioned Text)
 
   | DecoratorStmt
-      Fmt
-      (Positioned Expr)
+      !Fmt
+      !(Positioned Expr)
 
   | DecoratorBlock
-      Fmt
-      Fmt
-      (Positioned Expr)
-      (Positioned Template)
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Positioned Template)
   deriving (Show, Eq, Data, Typeable)
 
 data Expr
   = Lit
-      (Positioned Literal)
+      !(Positioned Literal)
 
   | SExp
-      (Positioned Literal)
-      [Positioned Expr]
-      (Positioned Hash)
+      !(Positioned Literal)
+      ![Positioned Expr]
+      !(Positioned Hash)
   deriving (Show, Eq, Data, Typeable)
 
 data Literal
-  = PathL Path
-  | DataL DataPath
-  | StringL Text
-  | NumberL Integer
-  | BooleanL Bool
+  = PathL !Path
+  | DataL !DataPath
+  | StringL !Text
+  | NumberL !Integer
+  | BooleanL !Bool
   | NullL
   deriving (Show, Eq, Data, Typeable)
 
-data BlockParams = BlockParams [Positioned Literal]
+data BlockParams = BlockParams ![Positioned Literal]
   deriving (Show, Eq, Data, Typeable)
 
 instance Monoid BlockParams where
@@ -138,24 +139,24 @@ instance Monoid BlockParams where
   mappend (BlockParams a) (BlockParams b) = BlockParams (mappend a b)
 
 data Path
-  = PathID Text (Maybe (Char, Path))
-  | PathSeg Text (Maybe (Char, Path))
+  = PathID !Text !(Maybe (Char, Path))
+  | PathSeg !Text !(Maybe (Char, Path))
   deriving (Show, Eq, Data, Typeable)
 
-data DataPath = DataPath Path
+data DataPath = DataPath !Path
   deriving (Show, Eq, Data, Typeable)
 
-data Hash = Hash [Positioned HashPair]
+data Hash = Hash ![Positioned HashPair]
   deriving (Show, Eq, Data, Typeable)
 
 instance Monoid Hash where
   mempty = Hash []
   mappend (Hash a) (Hash b) = Hash (a <> b)
 
-data HashPair = HashPair (Positioned Text) (Positioned Expr)
+data HashPair = HashPair !(Positioned Text) !(Positioned Expr)
   deriving (Show, Eq, Data, Typeable)
 
-data Fmt = Fmt Format Format
+data Fmt = Fmt !Format !Format
   deriving (Show, Eq, Data, Typeable)
 
 templateToText :: Template -> Text
