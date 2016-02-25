@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -Wwarn #-}
 module Test.BMX.Lexer where
 
@@ -9,12 +10,16 @@ import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
+import           BMX.Data.Position
 import           BMX.Data.Token
-import           BMX.Lexer (tokenise)
+import qualified BMX.Lexer as Lexer (tokenise)
 
 import           Test.BMX.Arbitrary ()
 
 import           P
+
+-- all lexer tests are equality-modulo-position
+tokenise = fmap (fmap depo) . Lexer.tokenise
 
 --------------------------------------------------------------------------------
 -- The parser roundtrip test provides most of our lexer coverage.
