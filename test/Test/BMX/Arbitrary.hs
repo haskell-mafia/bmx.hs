@@ -23,12 +23,25 @@ import           Test.BMX.Orphans ()
 import           P
 
 --------------------------------------------------------------------------------
--- Positioned items - everything gets mempty.
+-- Positioned items - positions are random garbage or zero.
 -- Tests requiring accurate positions can do (pretty . parse)
 
 instance Arbitrary a => Arbitrary (Positioned a) where
-  arbitrary = (:@) <$> arbitrary <*> pure mempty
+  arbitrary = (:@) <$> arbitrary <*> arbitrary
   shrink (a :@ _) = (:@) <$> shrink a <*> pure mempty
+
+instance Arbitrary Position where
+  arbitrary = Position <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary SrcInfo where
+  arbitrary = oneof [
+      do a <- arbitrary
+         b <- arbitrary
+         return $ if a < b then (SrcLoc a b) else (SrcLoc b a)
+    , pure NoInfo
+    ]
+  shrink = genericShrink
 
 --------------------------------------------------------------------------------
 -- Contexts and values

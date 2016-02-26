@@ -26,25 +26,24 @@ data Position = Position {
   , posColumn :: !Int
   } deriving (Data, Eq, Ord, Show, Typeable)
 
-emptyPosition :: Position
-emptyPosition = Position 0 0
-
 renderPosition :: Position -> Text
 renderPosition pos = "Line " <> tshow (posLine pos) <> ", Col " <> tshow (posColumn pos)
 
 -- | A range in the source file.
-data SrcInfo = SrcInfo {
-    leadingPosition :: !Position
-  , trailingPosition :: !Position
-  } deriving (Data, Eq, Ord, Show, Typeable)
+data SrcInfo
+  = SrcLoc !Position !Position
+  | NoInfo
+  deriving (Data, Eq, Ord, Show, Typeable)
 
 instance Monoid SrcInfo where
-  mempty = SrcInfo emptyPosition emptyPosition
-  mappend a b = SrcInfo (leadingPosition a) (trailingPosition b)
+  mempty = NoInfo
+  mappend NoInfo a = a
+  mappend a NoInfo = a
+  mappend (SrcLoc a _) (SrcLoc _ b) = SrcLoc a b
 
 renderSrcInfo :: SrcInfo -> Text
-renderSrcInfo srci = renderPosition (leadingPosition srci)
-  <> " -- " <> renderPosition (trailingPosition srci)
+renderSrcInfo NoInfo = "<no location info>"
+renderSrcInfo (SrcLoc a b) = renderPosition a <> " -- " <> renderPosition b
 
 -- | A value and character range pair
 data Positioned a = !a :@ !SrcInfo

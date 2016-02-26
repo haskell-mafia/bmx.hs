@@ -403,7 +403,7 @@ withPos p = do
   start <- liftM srcInfo getPosition
   val <- p
   end <- liftM srcInfo getPosition
-  return (val :@ (SrcInfo start end))
+  return (val :@ (SrcLoc start end))
 
 srcInfo :: SourcePos -> Position
 srcInfo pos = Position (sourceLine pos) (sourceColumn pos)

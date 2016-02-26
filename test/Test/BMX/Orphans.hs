@@ -67,3 +67,9 @@ deriving instance Typeable Value
 deriving instance Generic BMXValue
 deriving instance Data BMXValue
 deriving instance Typeable BMXValue
+
+deriving instance Generic Position
+
+deriving instance Generic SrcInfo
+
+deriving instance Generic a => Generic (Positioned a)
