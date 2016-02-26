@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -9,6 +10,7 @@ module BMX.Data.Token (
   , renderFormat
   ) where
 
+import           Data.Data (Data, Typeable)
 import           Data.Text (Text)
 
 import           BMX.Data.Format
@@ -59,4 +61,4 @@ data Token
   | Null
   | OpenBlockParams
   | CloseBlockParams
-  deriving (Show, Eq)
+  deriving (Data, Eq, Show, Typeable)

@@ -8,8 +8,9 @@ module BMX.Parser (
   , templateFromText
   ) where
 
+import           Data.Data (toConstr)
 import           Data.Either
-import           Data.List (last)
+import           Data.List (last, take)
 import           Data.Maybe (isJust)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -167,9 +168,10 @@ block :: { Positioned Stmt }:
               (fmt2, exp2) :@ locr = $4
               expected = exprHelper exp1
               actual = litHelper exp2
+              loc = locl <> locr
           in  if expected == actual && isJust expected
-              then return (Block fmt1 fmt2 exp1 bparams (prg $2) $3 :@ (locl <> locr))
-              else Left (blockError "Block" expected actual)
+              then return (Block fmt1 fmt2 exp1 bparams (prg $2) $3 :@ loc)
+              else Left (blockError "block" expected actual loc)
       }
 
 do_open_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned BlockParams)) }:
@@ -198,9 +200,10 @@ inverse_block :: { Positioned Stmt }:
               (fmt2, exp2) :@ locr = $4
               expected = exprHelper exp1
               actual = litHelper exp2
+              loc = locl <> locr
           in  if expected == actual && isJust expected
-              then return (InverseBlock fmt1 fmt2 exp1 bparams (prg $2) $3 :@ (locl <> locr))
-              else Left (blockError "Inverse block" expected actual)
+              then return (InverseBlock fmt1 fmt2 exp1 bparams (prg $2) $3 :@ loc)
+              else Left (blockError "inverse block" expected actual loc)
       }
 
 open_inverse_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned BlockParams)) }:
@@ -280,9 +283,10 @@ partial_block :: { Positioned Stmt }:
               (fmt2, exp2) :@ locr = $3
               expected = exprHelper exp1
               actual = litHelper exp2
+              loc = locl <> locr
           in  if expected == actual && isJust expected
-              then return (PartialBlock fmt1 fmt2 exp1 ctx hash (prg $2) :@ (locl <> locr))
-              else Left (blockError "Partial block" expected actual)
+              then return (PartialBlock fmt1 fmt2 exp1 ctx hash (prg $2) :@ loc)
+              else Left (blockError "partial block" expected actual loc)
       }
 
 do_open_partial_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned Expr), Positioned Hash) }:
@@ -307,9 +311,10 @@ decorator_block :: { Positioned Stmt }:
               (fmt2, exp2) :@ locr = $3
               expected = exprHelper exp1
               actual = litHelper exp2
+              loc = locl <> locr
           in  if expected == actual && isJust expected
-              then return (DecoratorBlock fmt1 fmt2 exp1 (prg $2) :@ (locl <> locr))
-              else Left (blockError "Decorator block" expected actual)
+              then return (DecoratorBlock fmt1 fmt2 exp1 (prg $2) :@ loc)
+              else Left (blockError "decorator block" expected actual loc)
       }
 
 do_open_decorator_block :: { Positioned (Fmt, Positioned Expr) }:
@@ -325,7 +330,7 @@ raw :: { Positioned Stmt }:
          let helperName = exprHelper $2 in
          if helperName == Just (depo $5)
          then return $ RawBlock $2 $4 :@ between $1 $5
-         else Left (rawBlockError helperName $5)
+         else Left (rawBlockError helperName $5 (between $1 $5))
       }
 
 -- -----------------------------------------------------------------------------
@@ -352,7 +357,7 @@ literal :: { Positioned Literal }:
   | nul                              { NullL <\$ $1 }
   | path                             { fmap PathL $1 }
   | data_path                        { fmap DataL $1 }
-  | undef                            {% Left undefError } -- FIX throw located error
+  | undef                            {% Left (undefError $1) }
 
 path :: { Positioned Path }:
     ident sep path                   { (\seg sep rest -> PathID seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
@@ -389,7 +394,11 @@ simple_id :: { Positioned Literal }:
 -- Parser util
 
 parseError :: [Positioned Token] -> Either ParseError a
-parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
+parseError [] = Left. ParseError NoInfo $ "unexpected end of input"
+parseError ((x :@ loc):xs) = Left . ParseError loc $ T.unlines [
+    "unhandled token: " <> (T.pack . show) x
+  , "followed by: " <> (T.pack . show . fmap (toConstr . depo)) (take 5 xs)
+  ]
 
 prg :: [Positioned Stmt] -> Positioned Template
 prg sts = Template (reverse sts) :@ listLoc sts
@@ -410,20 +419,27 @@ exprHelper (Lit lit :@ _) = litHelper lit
 litHelper :: Positioned Literal -> Maybe Text
 litHelper = Just . renderLiteral . depo
 
-rawBlockError :: Maybe Text -> Positioned Text -> ParseError
-rawBlockError Nothing (t :@ _) = ParseError "Raw block: Invalid helper"
-rawBlockError (Just t1) (t2 :@ _) = ParseError $
-  "Raw block: Helper name mismatch (Expected " <> t1 <> ", got " <> t2 <> ")"
+rawBlockError :: Maybe Text -> Positioned Text -> SrcInfo -> ParseError
+rawBlockError Nothing (t :@ _) loc = ParseError loc "raw block expects a helper"
+rawBlockError (Just t1) (t2 :@ _) loc = ParseError loc $ T.unlines [
+    "helper names must match in raw block open / close"
+  , indent 1 "(Expected '" <> t1 <> "', got '" <> t2 <> "')"
+  ]
 
-blockError :: Text -> Maybe Text -> Maybe Text -> ParseError
-blockError t Nothing _ = ParseError $ t <> ": Invalid helper"
-blockError t (Just t1) Nothing = ParseError $
-  t <> ": Helper name mismatch (Expected " <> t1 <> ", got nothing)"
-blockError t (Just t1) (Just t2) = ParseError $
-  t <> ": Helper name mismatch (Expected " <> t1 <> ", got " <> t2 <> ")"
 
-undefError :: ParseError
-undefError = ParseError "Found prohibited 'undefined' literal"
+blockError :: Text -> Maybe Text -> Maybe Text -> SrcInfo -> ParseError
+blockError t Nothing _ loc = ParseError loc $ "'" <> t <> "' is an invalid helper"
+blockError t (Just t1) Nothing loc = ParseError loc $ T.unlines [
+    "helper names must match in " <> t <> " open/close"
+  , indent 1 $ "(Expected '" <> t1 <> "', got nothing)"
+  ]
+blockError t (Just t1) (Just t2) loc = ParseError loc $ T.unlines [
+    "helper names must match in " <> t <> " open/close"
+  , indent 1 $ "(Expected '" <> t1 <> "', got '" <> t2 <> "')"
+  ]
+
+undefError :: Positioned a -> ParseError
+undefError (_ :@ i) = ParseError i "found prohibited 'undefined' literal"
 
 -- -----------------------------------------------------------------------------
 -- Public interface

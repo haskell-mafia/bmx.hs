@@ -49,9 +49,9 @@ data CLIError =
 
 renderCLIError :: CLIError -> Text
 renderCLIError = \case
-  TemplateError e -> "[template] " <> renderBMXError e
-  ContextError e -> "[context] " <> e
---  PartialError e -> "[partial] " <> renderBMXError e
+  TemplateError e -> renderBMXError e
+  ContextError e -> e
+--  PartialError e -> renderBMXError e
 
 main :: IO ()
 main = do
