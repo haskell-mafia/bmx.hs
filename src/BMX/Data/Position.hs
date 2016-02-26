@@ -7,6 +7,7 @@ module BMX.Data.Position (
   , Position (..)
   , Positioned (..)
   , depo
+  , posi
   , (<@@)
   , (@@>)
   , between
@@ -64,6 +65,9 @@ instance Applicative Positioned where
 -- | Strip position information
 depo :: Positioned a -> a
 depo (a :@ _) = a
+
+posi :: Positioned a -> SrcInfo
+posi (_ :@ p) = p
 
 -- | Absorb the item to the right
 (<@@) :: Positioned a -> Positioned b -> Positioned a

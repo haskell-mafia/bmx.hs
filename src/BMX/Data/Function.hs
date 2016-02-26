@@ -23,12 +23,11 @@ module BMX.Data.Function (
 import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Control.Monad.Writer
 import           Data.Text (Text)
-import qualified Data.Text as T
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
+import           BMX.Data.Error
 import           BMX.Data.Page
 import           BMX.Data.Value
 
@@ -58,12 +57,6 @@ instance (Applicative m, Monad m) => Alternative (FunctionT m) where
       Right v -> FunctionT (put st' >> return v)
 
 data FunctionState = FS [Value] [Param]
-
-data FunctionError
-  = Mismatch !Text !Text
-  | Trailing !Int
-  | EOF
-  | NoParams
 
 -- | Run the arg parser and return the rest of the computation in the inner monad.
 runFunctionT :: Monad m => [Value] -> [Param] -> FunctionT m a -> m (Either FunctionError a)
@@ -102,12 +95,6 @@ param = FunctionT $ do
     (x:xs) -> put (FS st xs) >> return x
     _ -> left NoParams
 
-renderFunctionError :: FunctionError -> Text
-renderFunctionError = \case
-  Mismatch e a -> "Type mismatch (expected " <> e <> ", got " <> a <> ")"
-  Trailing i -> "Too many arguments (" <> T.pack (show i) <> " unused)"
-  EOF -> "Not enough arguments"
-  NoParams -> "Not enough block parameters"
 
 -- -----------------------------------------------------------------------------
 -- Functions (helpers, partials, decorators)
