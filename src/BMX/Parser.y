@@ -9,6 +9,7 @@ module BMX.Parser (
   ) where
 
 import           Data.Either
+import           Data.List (last)
 import           Data.Maybe (isJust)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -22,63 +23,110 @@ import           P
 }
 
 %name parse
-%tokentype { Token }
+%tokentype { Positioned Token }
 %monad { Either ParseError }
 %error { parseError }
 
 %token
-  content              { Content $$ }
-  comment              { Comment $$ }
+  p_content              { $$ @ (Content _ :@ _) }
+  p_comment              { $$ @ (Comment _ :@ _) }
   --
-  open                 { Open $$ }
-  open_block           { OpenBlock $$ }
-  open_end_block       { OpenEndBlock $$ }
-  open_unescaped       { OpenUnescaped $$ }
-  open_comment         { OpenComment $$ }
-  open_comment_block   { OpenCommentBlock $$ }
-  open_partial         { OpenPartial $$ }
-  open_partial_block   { OpenPartialBlock $$ }
-  open_decorator       { OpenDecorator $$ }
-  open_decorator_block { OpenDecoratorBlock $$ }
-  open_inverse         { OpenInverse $$ }
-  open_inverse_chain   { OpenInverseChain $$ }
+  p_open                 { $$ @ (Open _ :@ _) }
+  p_open_block           { $$ @ (OpenBlock _ :@ _) }
+  p_open_end_block       { $$ @ (OpenEndBlock _ :@ _) }
+  p_open_unescaped       { $$ @ (OpenUnescaped _ :@ _) }
+  p_open_comment         { $$ @ (OpenComment _ :@ _) }
+  p_open_comment_block   { $$ @ (OpenCommentBlock _ :@ _) }
+  p_open_partial         { $$ @ (OpenPartial _ :@ _) }
+  p_open_partial_block   { $$ @ (OpenPartialBlock _ :@ _) }
+  p_open_decorator       { $$ @ (OpenDecorator _ :@ _) }
+  p_open_decorator_block { $$ @ (OpenDecoratorBlock _ :@ _) }
+  p_open_inverse         { $$ @ (OpenInverse _ :@ _) }
+  p_open_inverse_chain   { $$ @ (OpenInverseChain _ :@ _) }
   --
-  close                { Close $$ }
-  close_unescaped      { CloseUnescaped $$ }
-  close_comment_block  { CloseCommentBlock $$ }
+  p_close                { $$ @ (Close _ :@ _) }
+  p_close_unescaped      { $$ @ (CloseUnescaped _ :@ _) }
+  p_close_comment_block  { $$ @ (CloseCommentBlock _ :@ _) }
   --
-  string               { String $$ }
-  number               { Number $$ }
-  bool                 { Boolean $$ }
-  undef                { Undefined }
-  nul                  { Null }
-  ident                { ID $$ }
-  segment_id           { SegmentID $$ }
-  open_sexp            { OpenSExp }
-  close_sexp           { CloseSExp }
-  equals               { Equals }
-  data_sigil           { Data }
-  sep                  { Sep $$ }
-  open_block_params    { OpenBlockParams }
-  close_block_params   { CloseBlockParams }
+  p_string               { $$ @ (String _ :@ _) }
+  p_number               { $$ @ (Number _ :@ _) }
+  p_bool                 { $$ @ (Boolean _ :@ _) }
+  p_undef                { $$ @ (Undefined :@ _) }
+  p_nul                  { $$ @ (Null :@ _) }
+  p_ident                { $$ @ (ID _ :@ _) }
+  p_segment_id           { $$ @ (SegmentID _ :@ _) }
+  p_open_sexp            { $$ @ (OpenSExp :@ _) }
+  p_close_sexp           { $$ @ (CloseSExp :@ _) }
+  p_equals               { $$ @ (Equals :@ _) }
+  p_data_sigil           { $$ @ (Data :@ _) }
+  p_sep                  { $$ @ (Sep _ :@ _) }
+  p_open_block_params    { $$ @ (OpenBlockParams :@ _) }
+  p_close_block_params   { $$ @ (CloseBlockParams :@ _) }
   -- * Raw blocks
-  raw_content          { RawContent $$ }
-  open_raw_block       { OpenRawBlock }
-  close_raw_block      { CloseRawBlock }
-  close_raw            { CloseRaw $$ }
+  p_raw_content          { $$ @ (RawContent _ :@ _) }
+  p_open_raw_block       { $$ @ (OpenRawBlock :@ _) }
+  p_close_raw_block      { $$ @ (CloseRawBlock :@ _) }
+  p_close_raw            { $$ @ (CloseRaw _ :@ _) }
 
 %%
+
+-- -----------------------------------------------------------------------------
+-- Entry point
 
 template :: { Template }:
     statements                     { Template (reverse $1) }
 
-statements :: { [Stmt] }:
+
+-- -----------------------------------------------------------------------------
+-- Unpacking token patterns
+
+
+content:              p_content              { fmap (\(Content a)            -> a)  $1 }
+comment:              p_comment              { fmap (\(Comment a)            -> a)  $1 }
+open:                 p_open                 { fmap (\(Open a)               -> a)  $1 }
+open_block:           p_open_block           { fmap (\(OpenBlock a)          -> a)  $1 }
+open_end_block:       p_open_end_block       { fmap (\(OpenEndBlock a)       -> a)  $1 }
+open_unescaped:       p_open_unescaped       { fmap (\(OpenUnescaped a)      -> a)  $1 }
+open_comment:         p_open_comment         { fmap (\(OpenComment a)        -> a)  $1 }
+open_comment_block:   p_open_comment_block   { fmap (\(OpenCommentBlock a)   -> a)  $1 }
+open_partial:         p_open_partial         { fmap (\(OpenPartial a)        -> a)  $1 }
+open_partial_block:   p_open_partial_block   { fmap (\(OpenPartialBlock a)   -> a)  $1 }
+open_decorator:       p_open_decorator       { fmap (\(OpenDecorator a)      -> a)  $1 }
+open_decorator_block: p_open_decorator_block { fmap (\(OpenDecoratorBlock a) -> a)  $1 }
+open_inverse:         p_open_inverse         { fmap (\(OpenInverse a)        -> a)  $1 }
+open_inverse_chain:   p_open_inverse_chain   { fmap (\(OpenInverseChain a)   -> a)  $1 }
+close:                p_close                { fmap (\(Close a)              -> a)  $1 }
+close_unescaped:      p_close_unescaped      { fmap (\(CloseUnescaped a)     -> a)  $1 }
+close_comment_block:  p_close_comment_block  { fmap (\(CloseCommentBlock a)  -> a)  $1 }
+string:               p_string               { fmap (\(String a)             -> a)  $1 }
+number:               p_number               { fmap (\(Number a)             -> a)  $1 }
+bool:                 p_bool                 { fmap (\(Boolean a)            -> a)  $1 }
+undef:                p_undef                { fmap (\Undefined              -> ()) $1 }
+nul:                  p_nul                  { fmap (\Null                   -> ()) $1 }
+ident:                p_ident                { fmap (\(ID a)                 -> a)  $1 }
+segment_id:           p_segment_id           { fmap (\(SegmentID a)          -> a)  $1 }
+open_sexp:            p_open_sexp            { fmap (\OpenSExp               -> ()) $1 }
+close_sexp:           p_close_sexp           { fmap (\CloseSExp              -> ()) $1 }
+equals:               p_equals               { fmap (\Equals                 -> ()) $1 }
+data_sigil:           p_data_sigil           { fmap (\Data                   -> ()) $1 }
+sep:                  p_sep                  { fmap (\(Sep a)                -> a)  $1 }
+open_block_params:    p_open_block_params    { fmap (\OpenBlockParams        -> ()) $1 }
+close_block_params:   p_close_block_params   { fmap (\CloseBlockParams       -> ()) $1 }
+raw_content:          p_raw_content          { fmap (\(RawContent a)         -> a)  $1 }
+open_raw_block:       p_open_raw_block       { fmap (\OpenRawBlock           -> ()) $1 }
+close_raw_block:      p_close_raw_block      { fmap (\CloseRawBlock          -> ()) $1 }
+close_raw:            p_close_raw            { fmap (\(CloseRaw a)           -> a)  $1 }
+
+-- -----------------------------------------------------------------------------
+-- Statements
+
+statements :: { [Positioned Stmt] }:
     statements statement           { $2 : $1 }
   | {- empty -}                    { [] }
 
-statement :: { Stmt }:
-    content                        { ContentStmt $1 }
-  | do_comment                     { let (fmt, com) = $1 in CommentStmt fmt com }
+statement :: { Positioned Stmt }:
+    content                        { ContentStmt $1 <$ $1 }
+  | do_comment                     { $1 }
   | mustache                       { $1 }
   | raw                            { $1 }
   | block                          { $1 }
@@ -86,14 +134,18 @@ statement :: { Stmt }:
   | partial                        { $1 }
   | decorator                      { $1 }
 
-do_comment :: { (Fmt, Text) }:
+do_comment :: { Positioned Stmt }:
   -- You'd think we could discard comments here, but they have formatting implications
-    open_comment_block comment close_comment_block { (Fmt $1 $3, $2) }
-  | open_comment comment close                     { (Fmt $1 $3, $2) }
+    open_comment_block comment close_comment_block
+      { CommentStmt (fmt $1 $3) $2 :@ between $1 $3 }
+  | open_comment comment close
+      { CommentStmt (fmt $1 $3) $2 :@ between $1 $3 }
 
-mustache :: { Stmt }:
-    open bare_expr close                     { Mustache (Fmt $1 $3) $2 }
-  | open_unescaped bare_expr close_unescaped { MustacheUnescaped (Fmt $1 $3) $2 }
+mustache :: { Positioned Stmt }:
+    open bare_expr close
+      { Mustache (fmt $1 $3) $2 :@ between $1 $3 }
+  | open_unescaped bare_expr close_unescaped
+      { MustacheUnescaped (fmt $1 $3) $2 :@ between $1 $3 }
 
 -- -----------------------------------------------------------------------------
 -- Blocks
@@ -107,24 +159,26 @@ mustache :: { Stmt }:
   'falsey' condition is part of Helper definition, i.e. a custom thing per helper
   {{/blockHelper}}
 -}
-block :: { Stmt }:
+block :: { Positioned Stmt }:
     do_open_block statements inverse_chain do_close_block
       {%
           -- Match the helpername with the closing block
-          let (fmt1, exp1, bparams) = $1
-              (fmt2, exp2) = $4
+          let (fmt1, exp1, bparams) :@ locl = $1
+              (fmt2, exp2) :@ locr = $4
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (Block fmt1 fmt2 exp1 bparams (prg $2) $3)
+              then return (Block fmt1 fmt2 exp1 bparams (prg $2) $3 :@ (locl <> locr))
               else Left (blockError "Block" expected actual)
       }
 
-do_open_block :: { (Fmt, Expr, BlockParams) }:
-    open_block bare_expr block_params close { (Fmt $1 $4, $2, $3) }
+do_open_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned BlockParams)) }:
+    open_block bare_expr block_params close
+      { (fmt $1 $4, $2, $3) :@ between $1 $4 }
 
-do_close_block :: { (Fmt, Literal) }:
-    open_end_block literal close     { (Fmt $1 $3, $2) }
+do_close_block :: { Positioned (Fmt, Positioned Literal) }:
+    open_end_block literal close
+      { (fmt $1 $3, $2) :@ between $1 $3 }
 
 {-
   {{^if tuesday}}
@@ -137,20 +191,21 @@ do_close_block :: { (Fmt, Literal) }:
   though you could use {{else}} in place of {{^}}. ^ seems to ~mean 'not'
 
 -}
-inverse_block :: { Stmt }:
+inverse_block :: { Positioned Stmt }:
     open_inverse_block statements inverse do_close_block
       {%
-          let (fmt1, exp1, bparams) = $1
-              (fmt2, exp2) = $4
+          let (fmt1, exp1, bparams) :@ locl = $1
+              (fmt2, exp2) :@ locr = $4
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (InverseBlock fmt1 fmt2 exp1 bparams (prg $2) $3)
+              then return (InverseBlock fmt1 fmt2 exp1 bparams (prg $2) $3 :@ (locl <> locr))
               else Left (blockError "Inverse block" expected actual)
       }
 
-open_inverse_block :: { (Fmt, Expr, BlockParams) }:
-    open_inverse bare_expr block_params close { (Fmt $1 $4, $2, $3) }
+open_inverse_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned BlockParams)) }:
+    open_inverse bare_expr block_params close
+      { (fmt $1 $4, $2, $3) :@ between $1 $4 }
 
 {-
   {{^}}
@@ -160,10 +215,22 @@ open_inverse_block :: { (Fmt, Expr, BlockParams) }:
   everything after its Inverse is evaluated instead.
   An Inverse terminates the block, i.e. it can't be followed by a chained inverse.
 -}
-inverse :: { Template }:
-    open_inverse close statements          { Template [Inverse (Fmt $1 $2) (prg $3)] }
-  | open_inverse_chain close statements    { Template [Inverse (Fmt $1 $2) (prg $3)] }
-  | {- empty -}                            { Template [] }
+inverse :: { Positioned Template }:
+    open_inverse close statements
+      {
+        let
+          it = prg $3
+          i@(_ :@ loc) = Inverse (fmt $1 $2) it :@ (between $1 it)
+        in Template [i] :@ loc
+      }
+  | open_inverse_chain close statements
+      {
+        let
+          it = prg $3
+          i@(_ :@ loc) = Inverse (Fmt (depo $1) (depo $2)) it :@ (between $1 it)
+        in (Template [i]) :@ loc
+      }
+  | {- empty -}                            { (Template []) :@ mempty }
 
 {-
   {{# some block here }}
@@ -176,16 +243,17 @@ inverse :: { Template }:
   the final clause
   {{/some}}
 -}
-inverse_chain :: { Template }:
+inverse_chain :: { Positioned Template }:
     do_open_inverse_chain statements inverse_chain
       {
-        let (fmt, expr, bparams) = $1
-        in  Template [InverseChain fmt expr bparams (prg $2) $3]
+        let (fmt, expr, bparams) :@ loc = $1
+        in  ((Template [InverseChain fmt expr bparams (prg $2) $3 :@ loc]) :@ loc) <@@ $3
       }
   | inverse                           { $1 }
 
-do_open_inverse_chain :: { (Fmt, Expr, BlockParams) }:
-    open_inverse_chain bare_expr block_params close { (Fmt $1 $4, $2, $3) }
+do_open_inverse_chain :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned BlockParams)) }:
+    open_inverse_chain bare_expr block_params close
+      { (\lf rf -> (Fmt lf rf, $2, $3)) <\$> $1 <*> $4 }
 
 -- -----------------------------------------------------------------------------
 -- Partials
@@ -197,112 +265,122 @@ do_open_inverse_chain :: { (Fmt, Expr, BlockParams) }:
   {{/partial}}
   {{> partial withContext abc=def}}
 -}
-partial :: { Stmt }:
-    open_partial expr expr hash close     { PartialStmt (Fmt $1 $5) $2 (Just $3) $4 }
-  | open_partial expr hash close          { PartialStmt (Fmt $1 $4) $2 Nothing $3 }
-  | partial_block                         { $1 }
+partial :: { Positioned Stmt }:
+    open_partial expr expr hash close
+      { PartialStmt (fmt $1 $5) $2 (Just $3) $4 :@ between $1 $5 }
+  | open_partial expr hash close
+      { PartialStmt (fmt $1 $4) $2 Nothing $3 :@ between $1 $4 }
+  | partial_block
+      { $1 }
 
-partial_block :: { Stmt }:
+partial_block :: { Positioned Stmt }:
     do_open_partial_block statements do_close_block
       {%
-          let (fmt1, exp1, ctx, hash) = $1
-              (fmt2, exp2) = $3
+          let (fmt1, exp1, ctx, hash) :@ locl = $1
+              (fmt2, exp2) :@ locr = $3
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (PartialBlock fmt1 fmt2 exp1 ctx hash (prg $2))
+              then return (PartialBlock fmt1 fmt2 exp1 ctx hash (prg $2) :@ (locl <> locr))
               else Left (blockError "Partial block" expected actual)
       }
 
-do_open_partial_block :: { (Fmt, Expr, Maybe Expr, Hash) }:
-    open_partial_block expr expr hash close { (Fmt $1 $5, $2, (Just $3), $4) }
-  | open_partial_block expr hash close      { (Fmt $1 $4, $2, Nothing, $3) }
+do_open_partial_block :: { Positioned (Fmt, Positioned Expr, Maybe (Positioned Expr), Positioned Hash) }:
+    open_partial_block expr expr hash close
+      { (fmt $1 $5, $2, Just $3, $4) :@ between $1 $5 }
+  | open_partial_block expr hash close
+      { (fmt $1 $4, $2, Nothing, $3) :@ between $1 $4 }
 
 -- -----------------------------------------------------------------------------
 -- Decorators
 
-decorator :: { Stmt }:
-    open_decorator bare_expr close { DecoratorStmt (Fmt $1 $3) $2 }
-  | decorator_block                 { $1 }
+decorator :: { Positioned Stmt }:
+    open_decorator bare_expr close
+      { DecoratorStmt (fmt $1 $3) $2 :@ between $1 $3 }
+  | decorator_block
+      { $1 }
 
-decorator_block :: { Stmt }:
+decorator_block :: { Positioned Stmt }:
     do_open_decorator_block statements do_close_block
       {%
-          let (fmt1, exp1) = $1
-              (fmt2, exp2) = $3
+          let (fmt1, exp1) :@ locl = $1
+              (fmt2, exp2) :@ locr = $3
               expected = exprHelper exp1
               actual = litHelper exp2
           in  if expected == actual && isJust expected
-              then return (DecoratorBlock fmt1 fmt2 exp1 (prg $2))
+              then return (DecoratorBlock fmt1 fmt2 exp1 (prg $2) :@ (locl <> locr))
               else Left (blockError "Decorator block" expected actual)
       }
 
-do_open_decorator_block :: { (Fmt, Expr) }:
-    open_decorator_block bare_expr close { (Fmt $1 $3, $2) }
+do_open_decorator_block :: { Positioned (Fmt, Positioned Expr) }:
+    open_decorator_block bare_expr close
+      { (fmt $1 $3, $2) :@ between $1 $3 }
 
 -- -----------------------------------------------------------------------------
 -- Raw blocks
 
-raw :: { Stmt }:
+raw :: { Positioned Stmt }:
     open_raw_block bare_expr close_raw_block raw_content close_raw
       {%
          let helperName = exprHelper $2 in
-         if helperName == Just $5
-         then return $ RawBlock $2 $4
+         if helperName == Just (depo $5)
+         then return $ RawBlock $2 $4 :@ between $1 $5
          else Left (rawBlockError helperName $5)
       }
 
 -- -----------------------------------------------------------------------------
 -- Exprs, literals, atoms
 
-bare_expr :: { Expr }:
+bare_expr :: { Positioned Expr }:
     -- A SExp without parentheses
-    literal exprs hash               { SExp $1 (reverse $2) $3 }
+    literal exprs hash
+      { SExp $1 (reverse $2) $3 :@ between $1 $3 }
 
-expr :: { Expr }:
-    open_sexp bare_expr close_sexp   { $2 }
-  | literal                          { Lit $1 }
+expr :: { Positioned Expr }:
+    open_sexp bare_expr close_sexp
+      { depo $2 :@ between $1 $3 }
+  | literal                          { Lit $1 <$ $1 }
 
-exprs :: { [Expr] }:
+exprs :: { [Positioned Expr] }:
     exprs expr                       { $2 : $1 }
   | {- empty -}                      { [] }
 
-literal :: { Literal }:
-    string                           { StringL $1 }
-  | number                           { NumberL $1 }
-  | bool                             { BooleanL $1 }
-  | nul                              { NullL }
-  | path                             { PathL $1 }
-  | data_path                        { DataL $1 }
-  | undef                            {% Left undefError }
+literal :: { Positioned Literal }:
+    string                           { fmap StringL $1 }
+  | number                           { fmap NumberL $1 }
+  | bool                             { fmap BooleanL $1 }
+  | nul                              { NullL <\$ $1 }
+  | path                             { fmap PathL $1 }
+  | data_path                        { fmap DataL $1 }
+  | undef                            {% Left undefError } -- FIX throw located error
 
-path :: { Path }:
-    ident sep path                   { PathID $1 (Just ($2, $3)) }
-  | ident                            { PathID $1 Nothing }
-  | segment_id sep path              { PathSeg $1 (Just ($2, $3)) }
-  | segment_id                       { PathSeg $1 Nothing }
+path :: { Positioned Path }:
+    ident sep path                   { (\seg sep rest -> PathID seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
+  | ident                            { (\seg -> PathID seg Nothing) <\$> $1 }
+  | segment_id sep path              { (\seg sep rest -> PathSeg seg (Just (sep, rest))) <\$> $1 <*> $2 <*> $3 }
+  | segment_id                       { fmap (\s -> PathSeg s Nothing) $1 }
 
-data_path :: { DataPath }:
-    data_sigil path                  { DataPath $2 }
+data_path :: { Positioned DataPath }:
+    data_sigil path                  { DataPath <\$> $2 }
 
-hash :: { Hash }:
-    hash_pairs                       { Hash $1 }
+hash :: { Positioned Hash }:
+    hash_pairs                       { Hash $1 :@ listLoc $1 }
 
-hash_pairs :: { [HashPair] }:
-    ident equals expr hash_pairs   { HashPair $1 $3 : $4 }
-  | {- empty -}                    { [] }
+hash_pairs :: { [Positioned HashPair] }:
+    ident equals expr hash_pairs     { (HashPair $1 $3 :@ between $1 $3) : $4 }
+  | {- empty -}                      { [] }
 
-block_params :: { BlockParams }:
-    open_block_params names close_block_params { BlockParams (reverse $2) }
-  | {- empty -}                    { BlockParams [] }
+block_params :: { Maybe (Positioned BlockParams) }:
+    open_block_params names close_block_params { Just (BlockParams (reverse $2) <\$ ($1 <@@ $3)) }
+  | {- empty -}                                { Nothing }
 
-names :: { [Literal] }:
+names :: { [Positioned Literal] }:
   -- Used only in BlockParams, where the LHS of each pair must be a 'simple' name
     simple_id                       { [$1] }
   | names simple_id                 { $2 : $1 }
 
-simple_id :: { Literal }:
-    ident                          { PathL (PathID $1 Nothing) }
+simple_id :: { Positioned Literal }:
+    ident                          { fmap (\p -> PathL (PathID p Nothing)) $1 }
 
 {
 
@@ -310,22 +388,31 @@ simple_id :: { Literal }:
 -- -----------------------------------------------------------------------------
 -- Parser util
 
+parseError :: [Positioned Token] -> Either ParseError a
 parseError ts = Left . ParseError $ "Parse error at token " <> T.pack (show (headMay ts))
 
-prg :: [Stmt] -> Template
-prg = Template . reverse
+prg :: [Positioned Stmt] -> Positioned Template
+prg sts = Template (reverse sts) :@ listLoc sts
+
+fmt :: Positioned Format -> Positioned Format -> Fmt
+fmt a b = Fmt (depo a) (depo b)
+
+listLoc :: [Positioned a] -> SrcInfo
+listLoc [] = mempty
+listLoc ((_ :@ la) :[]) = la
+listLoc (x:xs) = between x (last xs)
 
 -- Extract the helper name from an Expr
-exprHelper :: Expr -> Maybe Text
-exprHelper (SExp lit _ _) = litHelper lit
-exprHelper (Lit lit) = litHelper lit
+exprHelper :: Positioned Expr -> Maybe Text
+exprHelper (SExp lit _ _ :@ _) = litHelper lit
+exprHelper (Lit lit :@ _) = litHelper lit
 
-litHelper :: Literal -> Maybe Text
-litHelper = Just . renderLiteral
+litHelper :: Positioned Literal -> Maybe Text
+litHelper = Just . renderLiteral . depo
 
-rawBlockError :: Maybe Text -> Text -> ParseError
-rawBlockError Nothing t = ParseError "Raw block: Invalid helper"
-rawBlockError (Just t1) t2 = ParseError $
+rawBlockError :: Maybe Text -> Positioned Text -> ParseError
+rawBlockError Nothing (t :@ _) = ParseError "Raw block: Invalid helper"
+rawBlockError (Just t1) (t2 :@ _) = ParseError $
   "Raw block: Helper name mismatch (Expected " <> t1 <> ", got " <> t2 <> ")"
 
 blockError :: Text -> Maybe Text -> Maybe Text -> ParseError

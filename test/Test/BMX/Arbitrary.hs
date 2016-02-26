@@ -23,6 +23,27 @@ import           Test.BMX.Orphans ()
 import           P
 
 --------------------------------------------------------------------------------
+-- Positioned items - positions are random garbage or zero.
+-- Tests requiring accurate positions can do (pretty . parse)
+
+instance Arbitrary a => Arbitrary (Positioned a) where
+  arbitrary = (:@) <$> arbitrary <*> arbitrary
+  shrink (a :@ _) = (:@) <$> shrink a <*> pure mempty
+
+instance Arbitrary Position where
+  arbitrary = Position <$> arbitrary <*> arbitrary
+  shrink = genericShrink
+
+instance Arbitrary SrcInfo where
+  arbitrary = oneof [
+      do a <- arbitrary
+         b <- arbitrary
+         return $ if a < b then (SrcLoc a b) else (SrcLoc b a)
+    , pure NoInfo
+    ]
+  shrink = genericShrink
+
+--------------------------------------------------------------------------------
 -- Contexts and values
 
 instance Arbitrary Context where
@@ -37,11 +58,14 @@ instance Arbitrary Param where
   arbitrary = Param <$> simpleId
   shrink (Param t) = Param <$> filter validId (shrink t)
 
+genContext :: Int -> Gen Context
 genContext 0 = pure (Context mempty)
 genContext n = Context . M.fromList <$> vectorOf (n `div` 2) ctxPairs
 
+ctxPairs :: Gen (Text, Value)
 ctxPairs = (,) <$> simpleId <*> genVal 4
 
+genVal :: Int -> Gen Value
 genVal 0 = oneof [
     pure NullV
   , pure UndefinedV
@@ -102,31 +126,36 @@ instance Arbitrary Stmt where
     , PartialBlock <$> arbitrary <*> arbitrary <*> arbitrary <*> expmay <*> arbitrary <*> body
     , Block <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverseChain
     , InverseBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> arbitrary <*> body <*> inverse
-    , RawBlock <$> bareExpr <*> rawContent
-    , ContentStmt <$> arbitrary `suchThat` validContent
-    , CommentStmt <$> arbitrary <*> arbitrary `suchThat` validComment
+    , RawBlock <$> bareExpr <*> fmap (:@ mempty) rawContent
+    , ContentStmt <$> arbitrary `suchThat` tis validContent
+    , CommentStmt <$> arbitrary <*> arbitrary `suchThat` tis validComment
     , DecoratorStmt <$> arbitrary <*> bareExpr
     , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
     ]
     where
-      body = Template <$> smaller (smallList arbitrary)
+      body = do
+        t <- Template <$> smaller (smallList arbitrary)
+        return (t :@ mempty)
       inverseChain = smaller $ sized goInverse
       goInverse 0 = inverse
       goInverse n = oneof [inverse, inverseChain' n]
-      inverseChain' n = fmap (Template . (:[])) $
-        InverseChain <$> arbitrary <*> bareExpr <*> arbitrary <*> body <*> goInverse (n `div` 2)
-      inverse = fmap (Template . (:[])) $ Inverse <$> arbitrary <*> body
+      inverseChain' n = do
+        t <- InverseChain <$> arbitrary <*> bareExpr <*> arbitrary <*> body <*> goInverse (n `div` 2)
+        return (Template [t :@ mempty] :@ mempty)
+      inverse = do
+        t <- Inverse <$> arbitrary <*> body
+        return (Template [t :@ mempty] :@ mempty)
       expmay = elements [Just, const Nothing] <*> bareExpr
   shrink = \case
-    ContentStmt t -> ContentStmt <$> filter validContent (shrink t)
-    CommentStmt f t -> CommentStmt f <$> filter validComment (shrink t)
-    RawBlock e _ -> RawBlock <$> shrink e <*> [T.empty]
+    ContentStmt t -> ContentStmt <$> filter (tis validContent) (shrink t)
+    CommentStmt f t -> CommentStmt f <$> filter (tis validComment) (shrink t)
+    RawBlock e _ -> RawBlock <$> shrink e <*> [T.empty :@ mempty]
     other -> genericShrink other
 
 instance Arbitrary Expr where
   arbitrary = oneof [
       Lit <$> arbitrary
-    , smaller bareExpr
+    , smaller (fmap depo bareExpr)
     ]
   shrink = genericShrink
 
@@ -144,7 +173,7 @@ instance Arbitrary Literal where
     other -> recursivelyShrink other
 
 instance Arbitrary BlockParams where
-  arbitrary = BlockParams <$> listOf1 name
+  arbitrary = BlockParams <$> listOf1 (fmap (:@ mempty) name)
     where
       -- A 'simple' name, i.e. an ID without path components
       name = fmap PathL . PathID <$> arbitrary `suchThat` validId <*> pure Nothing
@@ -183,8 +212,8 @@ instance Arbitrary Hash where
   shrink (Hash hps) = Hash <$> shrinkList shrink hps
 
 instance Arbitrary HashPair where
-  arbitrary = HashPair <$> arbitrary `suchThat` validId <*> smaller arbitrary
-  shrink (HashPair t e) = HashPair <$> filter validId (shrink t) <*> shrink e
+  arbitrary = HashPair <$> arbitrary `suchThat` tis validId <*> smaller arbitrary
+  shrink (HashPair t e) = HashPair <$> filter (tis validId) (shrink t) <*> shrink e
 
 instance Arbitrary Fmt where
   arbitrary = Fmt <$> arbitrary <*> arbitrary
@@ -195,8 +224,10 @@ instance Arbitrary Format where
 simpleId :: Gen Text
 simpleId = arbitrary `suchThat` validId
 
-bareExpr :: Gen Expr
-bareExpr = SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
+bareExpr :: Gen (Positioned Expr)
+bareExpr = do
+  expr <- SExp <$> arbitrary <*> smaller (smallList arbitrary) <*> smaller arbitrary
+  return (expr :@ mempty)
 
 smallList :: Gen a -> Gen [a]
 smallList g = sized go
@@ -210,7 +241,7 @@ smaller g = sized $ \s -> resize (s `div` 2) g
 merge :: Template -> Template
 merge (Template ps) = Template (go ps)
   where
-    go (ContentStmt t1 : ContentStmt t2 : xs) = go (ContentStmt (t1 <> t2) : xs)
+    go ((ContentStmt t1 :@ l1) : (ContentStmt t2 :@ l2) : xs) = go ((ContentStmt (t1 <> t2) :@ (l1 <> l2)) : xs)
     go (x : xs) = x : go xs
     go [] = []
 
@@ -278,6 +309,7 @@ validWeakComment t = and [noNull t, noMustaches t, noMustacheClose t, T.takeEnd 
 -- | Generated ID can't contain Sep characters, conflicts w sep
 -- also can't contain anything in the other keywords
 -- can't start with a number, else number parser kicks in
+validId :: Text -> Bool
 validId t = and [
     T.all (\c -> and [validIdChar c, c /= '.', c /= '/']) t
   , t /= "as"
@@ -291,3 +323,6 @@ validString t = and $ noNull t : unescapedEnd : (fmap noescape splits)
     splits = T.breakOnAll "\"" t
     noescape (s, _) = T.takeEnd 1 s /= "\\"
     unescapedEnd = T.takeEnd 1 t /= "\\"
+
+tis :: (Text -> Bool) -> Positioned Text -> Bool
+tis f = f . depo

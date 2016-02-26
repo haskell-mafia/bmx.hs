@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 {-# OPTIONS_GHC -Wwarn #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Test.BMX.Parser where
 
 import           Disorder.Core
@@ -11,12 +12,13 @@ import           Test.QuickCheck.Instances ()
 import           BMX (templateFromText, templateToText)
 
 import           Test.BMX.Arbitrary
+import           Test.BMX.Position
 
 import           P
 
 --------------------------------------------------------------------------------
 
-prop_parse_roundtrip p = tripping templateToText templateFromText p
+prop_parse_roundtrip p = trippingOn decontextualise templateToText templateFromText p
 
 --------------------------------------------------------------------------------
 -- dopey regression tests - the stuff that's easy to break

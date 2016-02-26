@@ -66,6 +66,7 @@ library
                        BMX.Data.Format
                        BMX.Data.Function
                        BMX.Data.Page
+                       BMX.Data.Position
                        BMX.Data.Token                       
                        BMX.Data.Value
 
@@ -94,7 +95,7 @@ test-suite test
 
   main-is:             test.hs
 
-  ghc-options:         -Wall -fno-warn-missing-signatures
+  ghc-options:         -Wall
 
   hs-source-dirs:
                        test
@@ -107,6 +108,7 @@ test-suite test
                      , Test.BMX.Orphans
                      , Test.BMX.Parser
                      , Test.BMX.Page
+                     , Test.BMX.Position
                      , Test.BMX.TH
 
   build-depends:

@@ -1,6 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
+{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 {-# OPTIONS_GHC -Wwarn #-}
 module Test.BMX.Lexer where
 
@@ -9,12 +10,16 @@ import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
+import           BMX.Data.Position
 import           BMX.Data.Token
-import           BMX.Lexer (tokenise)
+import qualified BMX.Lexer as Lexer (tokenise)
 
 import           Test.BMX.Arbitrary ()
 
 import           P
+
+-- all lexer tests are equality-modulo-position
+tokenise = fmap (fmap depo) . Lexer.tokenise
 
 --------------------------------------------------------------------------------
 -- The parser roundtrip test provides most of our lexer coverage.
@@ -26,6 +31,10 @@ prop_lex_none = once $ tokenise T.empty == Right []
 prop_lex_content = once $
   let str = T.pack ['A'..'z']
   in tokenise str === Right [Content str]
+
+prop_lex_empty_comment = once $
+  tokenise "{{!}}"
+    === Right [OpenComment Verbatim, Comment T.empty, Close Verbatim]
 
 prop_lex_comment = once $
   tokenise "{{! inline comment }}"

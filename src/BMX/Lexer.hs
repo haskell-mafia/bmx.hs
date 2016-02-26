@@ -13,6 +13,7 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Text.Parsec hiding ((<|>), string, tokens, token)
 import qualified Text.Parsec as Parsec
+
 import           Text.Parsec.Text
 import           Text.Read (read)
 
@@ -21,10 +22,10 @@ import           BMX.Data
 import           P hiding (many, null)
 
 
-tokenise :: Text -> Either LexError [Token]
+tokenise :: Text -> Either LexError [Positioned Token]
 tokenise t = bimap (LexError . T.pack . show) id (Parsec.parse tokens "handlebars" t)
 
-tokens :: Parser [Token]
+tokens :: Parser [Positioned Token]
 tokens = mconcat <$> many token <* eof
 
 
@@ -60,82 +61,95 @@ validIdChar = predi
 -- Top-level
 --
 
-token :: Parser [Token]
+token :: Parser [Positioned Token]
 token = mu <|> contentP
 
 -- | Raw Web Content
-contentP :: Parser [Token]
+contentP :: Parser [Positioned Token]
 contentP = do
-  body <- try (manyTillUnescaped notNull open) <|> plain
-  guard (not (T.null body))
-  pure [Content body]
+  body@(b :@ _) <- withPos $ try (manyTillUnescaped notNull open) <|> plain
+  guard (not (T.null b))
+  pure [fmap Content body]
   where
     plain = T.pack <$> many1 notNull
 
 -- | Mustachioed blocks
-mu :: Parser [Token]
+mu :: Parser [Positioned Token]
 mu = do
-  _    <- try open
-  lf   <- strip
+  o    <- withPos $ try open
+  lf   <- fmap (o @@>) strip
   body <- blockComment lf <|> shortComment lf <|> rawBlock lf <|> unescapedMu lf <|> muExpr lf
   pure body
 
 -- | Mustachioed expressions
-muExpr :: Format -> Parser [Token]
+muExpr :: Positioned Format -> Parser [Positioned Token]
 muExpr f = do
-  o      <- try $ openPs f
-  expr   <- manyTill exprPs (lookAhead (try (strip *> close)))
-  rstrip <- strip
-  _      <- close
-  pure (o : expr <> [Close rstrip])
+  o <- try $ openPs f
+  expr <- manyTill exprPs (lookAhead (try (strip *> close)))
+  c <- end
+  pure (o : expr <> [c])
+  where
+    end = do
+      lr@(r :@ _) <- strip
+      c <- withPos close
+      pure (lr @@> c $> Close r)
+
 
 -- | Top-level comment (block containing only a comment)
 -- e.g. "{{!-- this is a top-level comment --}}"
 -- Doesn't allow nested comments. "{{!-- {{!-- --}} --}}" will fail.
 -- See https://github.com/wycats/handlebars.js/blob/master/src/handlebars.l#L68
-blockComment :: Format -> Parser [Token]
-blockComment f = do
-  o      <- try startComment
-  com    <- manyTill notNull (lookAhead (try endCommentBlock))
-  _      <- endComment
-  rstrip <- strip
-  _      <- close
-  pure (o f : [Comment (T.pack com), CloseCommentBlock rstrip])
-  where startComment = string "!--" *> pure OpenCommentBlock
+blockComment :: Positioned Format -> Parser [Positioned Token]
+blockComment lf@(f :@ _) = do
+  o <- withPos startComment
+  com <- withPos . fmap (Comment . T.pack) $ manyTill notNull (lookAhead (try endCommentBlock))
+  e <- withPos endComment
+  lr@(rstrip :@ _) <- strip
+  c <- withPos close
+  let opener = lf @@> o
+      end = CloseCommentBlock rstrip <$ (e @@> lr @@> c)
+  pure [opener, com, end]
+  where startComment = try (string "!--") *> pure (OpenCommentBlock f)
         endComment = string "--"
         endCommentBlock = endComment *> strip *> close
 
 -- | Top-level comment in the short format. These can't contain
 -- anything mustache would parse.
 -- See https://github.com/wycats/handlebars.js/blob/master/src/handlebars.l#L97
-shortComment :: Format -> Parser [Token]
+shortComment :: Positioned Format -> Parser [Positioned Token]
 shortComment f = do
   _   <- try $ char '!'
-  com <- T.pack <$> manyTill notNull close
+  com <- withPos $ T.pack <$> manyTill notNull (lookAhead (try close))
   -- Spec has no rstrip here
-  pure [OpenComment f, Comment com, Close Verbatim]
+  c <- withPos close
+  pure [fmap OpenComment f, fmap Comment com, Close Verbatim <$ c]
 
 -- | Values produced by these blocks are not HTML-escaped
-unescapedMu :: Format -> Parser [Token]
+unescapedMu :: Positioned Format -> Parser [Positioned Token]
 unescapedMu lf = do
   o    <- try $ openUnescaped lf
   body <- manyTill exprPs (lookAhead (try endEscaped))
   rf   <- endEscaped
   pure (o : body <> [rf])
-  where endEscaped = CloseUnescaped <$> (string "}" *> strip <* close)
+  where
+    endEscaped :: Parser (Positioned Token)
+    endEscaped = fmap (fmap CloseUnescaped) (string "}" *> strip <* close)
 
 -- | A raw block: All content in between {{{{helper foo bar}}}} and {{{{/helper}}}} is
 -- handed directly to helper without any mustache-processing.
 -- Nested raw blocks are supported (ignored), but need to be balanced.
 -- e.g. {{{{a}}}} {{{{this does not work}}}} {{{{/a}}}}
-rawBlock :: Format -> Parser [Token]
-rawBlock Strip = fail "raw blocks can't perform formatting"
-rawBlock Verbatim = do
-  _    <- try open
-  body <- manyTill exprPs (close *> close)
-  raw  <- T.concat <$> many (try (nestedRaw <|> content'))
-  c    <- closeRawBlock
-  pure (OpenRawBlock : body <> [CloseRawBlock, RawContent raw, c])
+rawBlock :: Positioned Format -> Parser [Positioned Token]
+rawBlock (Strip :@ _) = fail "raw blocks can't perform formatting"
+rawBlock (Verbatim :@ _) = do
+  o <- withPos (try open)
+  body <- manyTill exprPs (lookAhead (close *> close))
+  c1 <- withPos (close *> close)
+  raw <- withPos $ RawContent . T.concat <$> many (try (nestedRaw <|> content'))
+  c2 <- withPos closeRawBlock
+  let openT = OpenRawBlock <$ o
+      closeT = CloseRawBlock <$ c1
+  pure $ openT : body <> [closeT, raw, c2]
   where
     openRaw = string "{{{{"
     closeRaw = string "}}}}"
@@ -160,77 +174,98 @@ rawBlock Verbatim = do
       _ <- skipSpace *> closeRaw
       pure (CloseRaw (T.pack i))
 
-openPs :: Format -> Parser Token
+openPs :: Positioned Format -> Parser (Positioned Token)
 openPs f = openPartial f
-       <|> openPartialBlock f
-       <|> openBlock f
-       <|> openEndBlock f
-       <|> openUnescaped f
-       <|> openUnescaped' f
-       <|> openInverse f
-       <|> openInverseChain f
-       <|> openOrdinary f
-       <?> "mustache opener"
+  <|> openPartialBlock f
+  <|> openBlock f
+  <|> openEndBlock f
+  <|> openUnescaped f
+  <|> openUnescaped' f
+  <|> openInverse f
+  <|> openInverseChain f
+  <|> openOrdinary f
+  <?> "mustache opener"
 
-exprPs :: Parser Token
+exprPs :: Parser (Positioned Token)
 exprPs = skipSpace *> eps <* skipSpace
-  where eps = numberP
-          <|> stringP
-          <|> boolP
-          <|> openSExp
-          <|> closeSExp
-          <|> equals
-          <|> dataSigil
-          <|> undef
-          <|> null
-          <|> openBlockParams
-          <|> closeBlockParams
-          <|> idP
-          <?> "literal"
+  where
+    eps = numberP
+      <|> stringP
+      <|> boolP
+      <|> openSExp
+      <|> closeSExp
+      <|> equals
+      <|> dataSigil
+      <|> undef
+      <|> null
+      <|> openBlockParams
+      <|> closeBlockParams
+      <|> idP
+      <?> "literal"
 
 
 -- -----------------------------------------------------------------------------
 -- Handlebars expression prologues
 --
 
-openPartial :: Format -> Parser Token
-openPartial f = try $ char '>' *> pure (OpenPartial f)
+openPartial :: Positioned Format -> Parser (Positioned Token)
+openPartial f = do
+  op <- withPos . try $ char '>'
+  pure (fmap OpenPartial f <@@ op)
 
-openPartialBlock :: Format -> Parser Token
-openPartialBlock f = try $ string "#>" *> pure (OpenPartialBlock f)
+openPartialBlock :: Positioned Format -> Parser (Positioned Token)
+openPartialBlock f = do
+  opb <- withPos . try $ string "#>"
+  pure (fmap OpenPartialBlock f <@@ opb)
 
 -- | {{# - block syntax
 --  {{#* - decorator block
-openBlock :: Format -> Parser Token
-openBlock f = do
-  _ <- try $ char '#'
-  option (OpenBlock f) (try $ char '*' *> pure (OpenDecoratorBlock f))
+openBlock :: Positioned Format -> Parser (Positioned Token)
+openBlock lf@(f :@ _) = do
+  o <- withPos opens
+  pure (lf @@> o)
+  where
+    opens = do
+      _ <- try $ char '#'
+      option (OpenBlock f) (try $ char '*' *> pure (OpenDecoratorBlock f))
 
 -- | End of a block's scope.
 -- e.g. {{/
-openEndBlock :: Format -> Parser Token
-openEndBlock f = try $ char '/' *> pure (OpenEndBlock f)
+openEndBlock :: Positioned Format -> Parser (Positioned Token)
+openEndBlock f = do
+  oeb <- withPos . try $ char '/'
+  pure (fmap OpenEndBlock f <@@ oeb)
 
 -- | A value that should not be HTML-escaped
 -- e.g. {{{body}}}
-openUnescaped :: Format -> Parser Token
-openUnescaped f = try $ char '{' *> pure (OpenUnescaped f)
+openUnescaped :: Positioned Format -> Parser (Positioned Token)
+openUnescaped f = do
+  ou <- withPos . try $ char '{'
+  pure (fmap OpenUnescaped f <@@ ou)
 
 -- | Alternate, undocumented format for unescaped output
 -- e.g. {{&body}}
-openUnescaped' :: Format -> Parser Token
-openUnescaped' f = try $ char '&' *> pure (OpenUnescaped f)
+openUnescaped' :: Positioned Format -> Parser (Positioned Token)
+openUnescaped' f = do
+  ou <- withPos . try $ char '&'
+  pure (fmap OpenUnescaped f <@@ ou)
 
 -- | {{ - ordinary expression
 --  {{* - decorator
-openOrdinary :: Format -> Parser Token
-openOrdinary f = option (Open f) (try $ char '*' *> pure (OpenDecorator f))
+openOrdinary :: Positioned Format -> Parser (Positioned Token)
+openOrdinary lf@(f :@ _) = do
+  oo <- withPos $ option (Open f) (try $ char '*' *> pure (OpenDecorator f))
+  pure (lf @@> oo)
 
-openInverse :: Format -> Parser Token
-openInverse f = try $ char '^' *> pure (OpenInverse f)
+openInverse :: Positioned Format -> Parser (Positioned Token)
+openInverse f = do
+  oi <- withPos . try $ char '^'
+  pure (fmap OpenInverse f <@@ oi)
 
-openInverseChain :: Format -> Parser Token
-openInverseChain f = try $ (skipSpace *> string "else" <* skipSpace) *> pure (OpenInverseChain f)
+openInverseChain :: Positioned Format -> Parser (Positioned Token)
+openInverseChain f = do
+  oic <- withPos . try $ (skipSpace *> string "else" <* skipSpace)
+  pure (fmap OpenInverseChain f <@@ oic)
 
 
 -- -----------------------------------------------------------------------------
@@ -240,8 +275,8 @@ openInverseChain f = try $ (skipSpace *> string "else" <* skipSpace) *> pure (Op
 -- | IDs are either ".", "..", a sequence of chars satisfying validIdChar, or
 -- 'segment literal notation' e.g. [10].
 -- Segment literals are defined as [(\\]|[^\]])*], i.e. [.*] with escaping
-idP :: Parser Token
-idP = segLit <|> dotdot <|> try dot <|> sep <|> idP'
+idP :: Parser (Positioned Token)
+idP = withPos (segLit <|> dotdot <|> try dot <|> sep <|> idP')
   where
     idTrail = lookAhead (try idLookAhead)
     --
@@ -265,8 +300,9 @@ idP = segLit <|> dotdot <|> try dot <|> sep <|> idP'
       _   <- try idTrail
       pure (SegmentID lit)
 
-numberP :: Parser Token
-numberP = do
+numberP :: Parser (Positioned Token)
+numberP = withPos $ do
+  -- FIX this is kinda terrible
   neg <- option id (try $ char '-' *> pure negate)
   int <- try (read <$> many1 digit)
   _   <- option [] suffix -- discard any fractional component
@@ -274,8 +310,8 @@ numberP = do
   pure (Number (neg int))
   where suffix = try $ char '.' *> many1 digit
 
-stringP :: Parser Token
-stringP = doubleP <|> singleP
+stringP :: Parser (Positioned Token)
+stringP = withPos (doubleP <|> singleP)
   where
     doubleP = do
       _   <- try $ char '"'
@@ -288,8 +324,8 @@ stringP = doubleP <|> singleP
       _   <- char '\''
       pure (String (T.replace "\\'" "'" str))
 
-boolP :: Parser Token
-boolP = true <|> false
+boolP :: Parser (Positioned Token)
+boolP = withPos (true <|> false)
   where
     true = try $ string "true" *> pure (Boolean True)
     false = try $ string "false" *> pure (Boolean False)
@@ -297,32 +333,32 @@ boolP = true <|> false
 sep :: Parser Token
 sep = Sep <$> (try (char '.') <|> try (char '/'))
 
-equals :: Parser Token
-equals = try $ string "=" *> pure Equals
+equals :: Parser (Positioned Token)
+equals = withPos . try $ string "=" *> pure Equals
 
-dataSigil :: Parser Token
-dataSigil = try $ string "@" *> pure Data
+dataSigil :: Parser (Positioned Token)
+dataSigil = withPos . try $ string "@" *> pure Data
 
-undef :: Parser Token
-undef = try $ string "undefined" *> pure Undefined
+undef :: Parser (Positioned Token)
+undef = withPos . try $ string "undefined" *> pure Undefined
 
-null :: Parser Token
-null = try $ string "null" *> lookAhead literalLookAhead *> pure Null
+null :: Parser (Positioned Token)
+null = withPos . try $ string "null" *> lookAhead literalLookAhead *> pure Null
 
-openBlockParams :: Parser Token
-openBlockParams = try $ string "as" *> many1 space *> string "|" *> pure OpenBlockParams
+openBlockParams :: Parser (Positioned Token)
+openBlockParams = withPos . try $ string "as" *> many1 space *> string "|" *> pure OpenBlockParams
 
-closeBlockParams :: Parser Token
-closeBlockParams = try $ string "|" *> pure CloseBlockParams
+closeBlockParams :: Parser (Positioned Token)
+closeBlockParams = withPos . try $ string "|" *> pure CloseBlockParams
 
-openSExp :: Parser Token
-openSExp = try $ const OpenSExp <$> char '('
+openSExp :: Parser (Positioned Token)
+openSExp = withPos . try $ const OpenSExp <$> char '('
 
-closeSExp :: Parser Token
-closeSExp = try $ const CloseSExp <$> char ')'
+closeSExp :: Parser (Positioned Token)
+closeSExp = withPos . try $ const CloseSExp <$> char ')'
 
-strip :: Parser Format
-strip = option Verbatim (try $ string "~" *> pure Strip)
+strip :: Parser (Positioned Format)
+strip = withPos $ option Verbatim (try $ string "~" *> pure Strip)
 
 open :: Parser Text
 open = try $ string "{{"
@@ -361,3 +397,13 @@ takeWhile1 p = T.pack <$> many1 (try (satisfy p))
 
 string :: [Char] -> Parser Text
 string = fmap T.pack . Parsec.string
+
+withPos :: Parser a -> Parser (Positioned a)
+withPos p = do
+  start <- liftM srcInfo getPosition
+  val <- p
+  end <- liftM srcInfo getPosition
+  return (val :@ (SrcLoc start end))
+
+srcInfo :: SourcePos -> Position
+srcInfo pos = Position (sourceLine pos) (sourceColumn pos)

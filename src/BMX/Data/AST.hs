@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
@@ -24,6 +25,7 @@ import           Data.Data (Data, Typeable)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
+import           BMX.Data.Position
 import           BMX.Data.Format
 
 import           P
@@ -31,7 +33,7 @@ import           P
 -- | A Template in the form of an abstract syntax tree, waiting to be rendered.
 --
 -- Build a Template with 'templateFromText'.
-newtype Template = Template [Stmt]
+newtype Template = Template [Positioned Stmt]
   deriving (Show, Eq, Data, Typeable)
 
 instance Monoid Template where
@@ -39,36 +41,97 @@ instance Monoid Template where
   mappend (Template a) (Template b) = Template (a <> b)
 
 data Stmt
-  = Mustache Fmt Expr
-  | MustacheUnescaped Fmt Expr
-  | PartialStmt Fmt Expr (Maybe Expr) Hash
-  | PartialBlock Fmt Fmt Expr (Maybe Expr) Hash Template
-  | Block Fmt Fmt Expr BlockParams Template Template
-  | Inverse Fmt Template
-  | InverseChain Fmt Expr BlockParams Template Template
-  | InverseBlock Fmt Fmt Expr BlockParams Template Template
-  | RawBlock Expr Text
-  | ContentStmt Text
-  | CommentStmt Fmt Text
-  | DecoratorStmt Fmt Expr
-  | DecoratorBlock Fmt Fmt Expr Template
+  = Mustache
+      !Fmt
+      !(Positioned Expr)
+
+  | MustacheUnescaped
+      !Fmt
+      !(Positioned Expr)
+
+  | PartialStmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned Expr))
+      !(Positioned Hash)
+
+  | PartialBlock
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned Expr))
+      !(Positioned Hash)
+      !(Positioned Template)
+
+  | Block
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
+
+  | Inverse
+      !Fmt
+      !(Positioned Template)
+
+  | InverseChain
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
+
+  | InverseBlock
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Maybe (Positioned BlockParams))
+      !(Positioned Template)
+      !(Positioned Template)
+
+  | RawBlock
+      !(Positioned Expr)
+      !(Positioned Text)
+
+  | ContentStmt
+      !(Positioned Text)
+
+  | CommentStmt
+      !Fmt
+      !(Positioned Text)
+
+  | DecoratorStmt
+      !Fmt
+      !(Positioned Expr)
+
+  | DecoratorBlock
+      !Fmt
+      !Fmt
+      !(Positioned Expr)
+      !(Positioned Template)
   deriving (Show, Eq, Data, Typeable)
 
 data Expr
-  = Lit Literal
-  | SExp Literal [Expr] Hash
+  = Lit
+      !(Positioned Literal)
+
+  | SExp
+      !(Positioned Literal)
+      ![Positioned Expr]
+      !(Positioned Hash)
   deriving (Show, Eq, Data, Typeable)
 
 data Literal
-  = PathL Path
-  | DataL DataPath
-  | StringL Text
-  | NumberL Integer
-  | BooleanL Bool
+  = PathL !Path
+  | DataL !DataPath
+  | StringL !Text
+  | NumberL !Integer
+  | BooleanL !Bool
   | NullL
   deriving (Show, Eq, Data, Typeable)
 
-data BlockParams = BlockParams [Literal]
+data BlockParams = BlockParams ![Positioned Literal]
   deriving (Show, Eq, Data, Typeable)
 
 instance Monoid BlockParams where
@@ -76,24 +139,24 @@ instance Monoid BlockParams where
   mappend (BlockParams a) (BlockParams b) = BlockParams (mappend a b)
 
 data Path
-  = PathID Text (Maybe (Char, Path))
-  | PathSeg Text (Maybe (Char, Path))
+  = PathID !Text !(Maybe (Char, Path))
+  | PathSeg !Text !(Maybe (Char, Path))
   deriving (Show, Eq, Data, Typeable)
 
-data DataPath = DataPath Path
+data DataPath = DataPath !Path
   deriving (Show, Eq, Data, Typeable)
 
-data Hash = Hash [HashPair]
+data Hash = Hash ![Positioned HashPair]
   deriving (Show, Eq, Data, Typeable)
 
 instance Monoid Hash where
   mempty = Hash []
   mappend (Hash a) (Hash b) = Hash (a <> b)
 
-data HashPair = HashPair Text Expr
+data HashPair = HashPair !(Positioned Text) !(Positioned Expr)
   deriving (Show, Eq, Data, Typeable)
 
-data Fmt = Fmt Format Format
+data Fmt = Fmt !Format !Format
   deriving (Show, Eq, Data, Typeable)
 
 templateToText :: Template -> Text
@@ -119,76 +182,85 @@ renderLiteral = \case
 -- -----------------------------------------------------------------------------
 
 renderBlockParams :: BlockParams -> Text
-renderBlockParams (BlockParams ps) = " as |" <> T.intercalate " " (fmap renderLiteral ps) <> "|"
+renderBlockParams (BlockParams ps) = " as |" <> T.intercalate " " (fmap (renderLiteral . depo) ps) <> "|"
 
 renderHash :: Hash -> Text
-renderHash (Hash hps) = T.intercalate " " (fmap renderHashPair hps)
+renderHash (Hash hps) = T.intercalate " " (fmap (renderHashPair . depo) hps)
 
 renderHashPair :: HashPair -> Text
-renderHashPair (HashPair t e) = t <> " = " <> renderExpr e
+renderHashPair (HashPair (t :@ _) (e :@ _)) = t <> " = " <> renderExpr e
 
 renderExpr :: Expr -> Text
-renderExpr (Lit l) = renderLiteral l
+renderExpr (Lit (l :@ _)) = renderLiteral l
 renderExpr e@(SExp _ _ _) = "(" <> renderBareExpr e <> ")"
 
 renderBareExpr :: Expr -> Text
-renderBareExpr (Lit l) = renderLiteral l
-renderBareExpr (SExp l es hash) =
-  T.intercalate " " (renderLiteral l : fmap renderExpr es <> [renderHash hash])
+renderBareExpr (Lit (l :@ _)) = renderLiteral l
+renderBareExpr (SExp (l :@ _) es hash) =
+  T.intercalate " " (renderLiteral l : fmap (renderExpr . depo) es <> [renderHash (depo hash)])
 
 renderStmt :: Stmt -> Text
 renderStmt = \case
-  Mustache (Fmt l r) e ->
+  Mustache (Fmt l r) (e :@ _) ->
     openFormat l <> renderBareExpr e <> closeFormat r
-  MustacheUnescaped (Fmt l r) e ->
+  MustacheUnescaped (Fmt l r) (e :@ _) ->
     openFormat l <> "{" <> renderBareExpr e <> "}" <> closeFormat r
-  PartialStmt (Fmt l r) e ctx hash ->
+  PartialStmt (Fmt l r) (e :@ _) ctx (hash :@ _) ->
     openFormat l <> ">" <> renderExpr e
-       <> " " <> maybe T.empty renderExpr ctx
+       <> " " <> maybe T.empty (renderExpr . depo) ctx
        <> " " <> renderHash hash
        <> closeFormat r
-  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ctx hash body ->
+  PartialBlock (Fmt l1 r1) (Fmt l2 r2) (e :@ _) ctx (hash :@ _) (body :@ _) ->
     openFormat l1 <> "#>" <> renderExpr e
-      <> " " <> maybe T.empty renderExpr ctx
+      <> " " <> maybe T.empty (renderExpr . depo) ctx
       <> " " <> renderHash hash
       <> closeFormat r1
       <> renderTemplate body
       <> closeBlock l2 r2 e
-  Block (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
-    openFormat l1 <> "#" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
+  Block (Fmt l1 r1) (Fmt l2 r2) (e :@ _) bparams (body :@ _) (inverse :@ _) ->
+    openFormat l1 <> "#"
+      <> renderBareExpr e
+      <> maybe T.empty (blockParams . depo) bparams
+      <> closeFormat r1
       <> renderTemplate body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
-  Inverse (Fmt l r) body ->
+  Inverse (Fmt l r) (body :@ _) ->
     openFormat l <> "^" <> closeFormat r <> renderTemplate body
-  InverseChain (Fmt l r) e bparams body inverse ->
-    openFormat l <> "else " <> renderBareExpr e <> blockParams bparams <> closeFormat r
+  InverseChain (Fmt l r) (e :@ _) bparams (body :@ _) (inverse :@ _) ->
+    openFormat l <> "else "
+      <> renderBareExpr e
+      <> maybe T.empty (blockParams . depo) bparams
+      <> closeFormat r
       <> renderTemplate body
       <> inverseMay inverse
-  InverseBlock (Fmt l1 r1) (Fmt l2 r2) e bparams body inverse ->
-    openFormat l1 <> "^" <> renderBareExpr e <> blockParams bparams <> closeFormat r1
+  InverseBlock (Fmt l1 r1) (Fmt l2 r2) (e :@ _) bparams (body :@ _) (inverse :@ _) ->
+    openFormat l1 <> "^"
+      <> renderBareExpr e
+      <> maybe T.empty (blockParams . depo) bparams
+      <> closeFormat r1
       <> renderTemplate body
       <> inverseMay inverse
       <> closeBlock l2 r2 e
-  RawBlock e content ->
+  RawBlock (e :@ _) (content :@ _) ->
     "{{{{" <> renderBareExpr e <> "}}}}" <> content <> "{{{{/" <> exprHelper e <> "}}}}"
-  ContentStmt content -> content
-  CommentStmt (Fmt l r) comment ->
+  ContentStmt (content :@ _) -> content
+  CommentStmt (Fmt l r) (comment :@ _) ->
     openFormat l <> "!--" <> comment <> "--" <> closeFormat r
-  DecoratorStmt (Fmt l r) e ->
+  DecoratorStmt (Fmt l r) (e :@ _) ->
     openFormat l <> "*" <> renderBareExpr e <> closeFormat r
-  DecoratorBlock (Fmt l1 r1) (Fmt l2 r2) e body ->
+  DecoratorBlock (Fmt l1 r1) (Fmt l2 r2) (e :@ _) (body :@ _) ->
     openFormat l1 <> "#*" <> renderBareExpr e <> closeFormat r1
       <> renderTemplate body
       <> closeBlock l2 r2 e
   where
     openFormat f = "{{" <> renderFormat f
     closeFormat f = renderFormat f <> "}}"
-    exprHelper (Lit lit) = renderLiteral lit
-    exprHelper (SExp lit _ _) = renderLiteral lit
+    exprHelper (Lit (lit :@ _)) = renderLiteral lit
+    exprHelper (SExp (lit :@ _) _ _) = renderLiteral lit
     blockParams = renderBlockParams
     inverseMay = renderTemplate
     closeBlock l r e = openFormat l <> "/" <> exprHelper e <> closeFormat r
 
 renderTemplate :: Template -> Text
-renderTemplate (Template ss) = foldMap renderStmt ss
+renderTemplate (Template ss) = foldMap (renderStmt . depo) ss
