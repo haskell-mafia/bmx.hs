@@ -120,9 +120,9 @@ usingDecorators st ds = st { bmxDecorators = ds <> bmxDecorators st }
 packState :: (Applicative m, Monad m) => BMXState m -> Either BMXError (EvalState m)
 packState bst = do
   ctx <- boxContext (bmxContext bst)
-  partials <- mapUnique ShadowPartial (bmxPartials bst)
-  helpers <- mapUnique ShadowHelper (bmxHelpers bst)
-  decorators <- mapUnique ShadowDecorator (bmxDecorators bst)
+  partials <- mapUnique (Shadowing NoInfo "partial") (bmxPartials bst)
+  helpers <- mapUnique (Shadowing NoInfo "helper") (bmxHelpers bst)
+  decorators <- mapUnique (Shadowing NoInfo "decorator") (bmxDecorators bst)
   let dta = mempty
   return EvalState {
       evalContext = [ctx]
@@ -132,15 +132,15 @@ packState bst = do
     , evalDecorators = decorators
     }
 
-mapUnique :: (SrcInfo -> Text -> EvalError) -> [(Text, a)] -> Either BMXError (Map Text a)
+mapUnique :: (Text -> EvalError) -> [(Text, a)] -> Either BMXError (Map Text a)
 mapUnique e = foldM foldFun M.empty
   where foldFun m (k, v)  = if M.member k m
-          then Left (BMXEvalError (e NoInfo k))
+          then Left (BMXEvalError (e k))
           else Right (M.insert k v m)
 
 boxContext :: [(Text, BMXValue)] -> Either BMXError Context
 boxContext c = do
-  ctx <- mapUnique ShadowValue c
+  ctx <- mapUnique (Shadowing NoInfo "value") c
   ctx' <- mapM rebox ctx
   return (Context ctx')
 

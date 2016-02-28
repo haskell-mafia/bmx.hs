@@ -257,7 +257,7 @@ withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
       mv <- lookupValue key
-      maybe (return ()) (const $ err (ShadowValue NoInfo key)) mv -- FIX
+      maybe (return ()) (const $ err (Shadowing NoInfo "value" key)) mv -- FIX
 
 -- | Register a variable in the current context, then run some action
 -- in the 'BMX' monad.
@@ -305,13 +305,12 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
   where
     noShadowing = do
       mv <- lookupPartial (PathID name Nothing)
-      maybe (return ()) (const $ err (ShadowPartial NoInfo name)) mv -- FIX
+      maybe (return ()) (const $ err (Shadowing NoInfo "partial" name)) mv -- FIX locations
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
 -- | Look up a 'Value' in the current 'Context'.
 lookupValueByPath :: Monad m => Path -> BMX m (Maybe Value)
--- FIX replace Path with some public type - probably Text
 lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
@@ -324,8 +323,6 @@ lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
       _ -> going p x
     -- Traverse the rest of the path
     going p ctx = case (vname p, vrest p) of
-      (t@".", _) -> err (InvalidPath NoInfo t) -- FIX
-      (t@"..", _) -> err (InvalidPath NoInfo t) -- FIX
       (t, Nothing) -> return (resolve t ctx)
       (t, Just (_, p')) -> maybe (return Nothing) (step p') (resolve t ctx)
     --

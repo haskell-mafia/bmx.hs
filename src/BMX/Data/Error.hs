@@ -88,20 +88,10 @@ renderFunctionError = \case
 
 data EvalError
   = TypeError       !SrcInfo !Text !Text -- ^ A type error, with "expected" and "actual" fields.
-  | HelperError     !SrcInfo !FunctionError -- ^ Incorrect arguments for a Helper.
-  | PartialError    !SrcInfo !FunctionError -- ^ Incorrect arguments for a Partial.
-  | DecoratorError  !SrcInfo !FunctionError -- ^ Incorrect arguments for a Decorator.
-  | InvalidPath     !SrcInfo !Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
-  | NoSuchPartial   !SrcInfo !Text -- ^ An invoked partial was not found, and there was no failover template.
-  | NoSuchDecorator !SrcInfo !Text -- ^ An invoked decorator was not found.
-  | NoSuchHelper    !SrcInfo !Text -- ^ An invoked block helper was not found.
-  | NoSuchValue     !SrcInfo !Text -- ^ A variable was not found, and it was unsafe to proceed.
-  | ParserError     !SrcInfo !Text -- ^ An absurd case - indicative of an error in the parser.
+  | FunctionError   !SrcInfo !Text !FunctionError -- ^ Arity / type error for a helper / partial / decorator
+  | NotFound        !SrcInfo !Text !Text -- ^ Failed lookup with no failover
   | Unrenderable    !SrcInfo !Text -- ^ Attempt to render an undefined, list or context.
-  | ShadowValue     !SrcInfo !Text -- ^ Attempt to redefine a variable in the current context
-  | ShadowPartial   !SrcInfo !Text -- ^ Attempt to redefine a partial
-  | ShadowHelper    !SrcInfo !Text -- ^ Attempt to redefine a helper
-  | ShadowDecorator !SrcInfo !Text -- ^ Attempt to redefine a Decorator
+  | Shadowing       !SrcInfo !Text !Text -- ^ Attempt to redefine something
   | DefUndef        !SrcInfo !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
   | UserError       !SrcInfo !Text -- ^ Custom error thrown from a helper.
 
@@ -112,20 +102,14 @@ ree loc t = T.unlines [ header, indent 1 t ]
 
 renderEvalError :: EvalError -> Text
 renderEvalError = \case
-  TypeError       loc e a -> ree loc $ "Type error (expected " <> e <> ", actually " <> a <> ")"
-  HelperError     loc fe  -> ree loc $ "Helper misuse: " <> renderFunctionError fe
-  PartialError    loc fe  -> ree loc $ "Partial misuse: " <> renderFunctionError fe
-  DecoratorError  loc fe  -> ree loc $ "Decorator misuse: " <> renderFunctionError fe
-  InvalidPath     loc t   -> ree loc $ "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
-  NoSuchPartial   loc t   -> ree loc $ "Partial '" <> t <> "' is not defined"
-  NoSuchDecorator loc t   -> ree loc $ "Decorator '" <> t <> "' is not defined"
-  NoSuchHelper    loc t   -> ree loc $ "Helper '" <> t <> "' is not defined"
-  NoSuchValue     loc t   -> ree loc $ "Value '" <> t <> "' is not defined"
-  ParserError     loc t   -> ree loc $ "Parser error: " <> t
-  Unrenderable    loc t   -> ree loc $ "Invalid mustache: cannot render '" <> t <> "'"
-  ShadowValue     loc t   -> ree loc $ "The local definition of value '" <> t <> "' shadows an existing binding"
-  ShadowHelper    loc t   -> ree loc $ "The local definition of helper '" <> t <> "' shadows an existing binding"
-  ShadowPartial   loc t   -> ree loc $ "The local definition of partial '" <> t <> "' shadows an existing binding"
-  ShadowDecorator loc t   -> ree loc $ "The local definition of decorator '" <> t <> "' shadows an existing binding"
-  DefUndef        loc t   -> ree loc $ "Attempt to define variable '" <> t <> "' as 'undefined' - no"
-  UserError       loc t   -> ree loc $ "Error thrown in user code: " <> t
+  TypeError       loc e a  -> ree loc $ "Type error (expected " <> e <> ", actually " <> a <> ")"
+  NotFound        loc t v  -> ree loc $ "Invoked " <> t <> " '" <> v <> "' is not defined"
+  Unrenderable    loc t    -> ree loc $ "Invalid mustache: cannot render '" <> t <> "'"
+  Shadowing       loc t v  -> ree loc $ "The local definition of " <> t <> " '" <> v <> "' shadows an existing binding"
+  DefUndef        loc t    -> ree loc $ "Attempt to define variable '" <> t <> "' as 'undefined' - no"
+  UserError       loc t    -> ree loc $ T.unlines [ "Error thrown in user code",  indent 1 t ]
+  FunctionError   loc t fe -> ree loc $ T.unlines [
+      "Error applying " <> t
+    , indent 1 $ renderFunctionError fe
+    ]
+

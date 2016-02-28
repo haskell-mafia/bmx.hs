@@ -112,11 +112,11 @@ withDecorator v (Decorator deco) k = case deco of
 -- | Run a block decorator, then a continuation
 withBlockDecorator :: Monad m => [Value] -> Template -> Decorator m -> BMX m Page -> BMX m Page
 withBlockDecorator v b (Decorator deco) k = case deco of
-  DecoratorT _ -> err (TypeError NoInfo "block decorator" "decorator") -- FIX
+  DecoratorT _ -> err (TypeError NoInfo "block decorator" "decorator") -- FIX locations
   BlockDecoratorT d -> runFunctionT v [] (d b k) >>= either decoE return
 
 helpE :: Monad m => FunctionError -> BMX m a
-helpE = err . HelperError NoInfo -- FIX
+helpE = err . FunctionError NoInfo "helper" -- FIX locations
 
 decoE :: Monad m => FunctionError -> BMX m a
-decoE = err . DecoratorError NoInfo -- FIX
+decoE = err . FunctionError NoInfo "decorator" -- FIX locations

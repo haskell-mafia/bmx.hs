@@ -96,7 +96,7 @@ evalStmt (stmt :@ _loc) = case stmt of
 
   -- Special handler that resolves and inlines the partial
   PartialStmt (Fmt l r) e ee hash ->
-    evalPartial l Verbatim r Verbatim e ee hash (\(lit :@ lloc) -> err . NoSuchPartial lloc $ renderLiteral lit)
+    evalPartial l Verbatim r Verbatim e ee hash (\(lit :@ lloc) -> err . NotFound lloc "partial" $ renderLiteral lit)
 
   -- Special handler that registers @partial-block, and fails over if partial not found
   PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee hash b ->
@@ -136,11 +136,11 @@ evalExpr' b l@(_ :@ lloc) p _hash = do
       mv <- valueFromLit ll
       -- Refuse to coerce - fail if not found.
       -- Could rely on evalMustache's 'render' check, but this provides a better error
-      maybe (err (NoSuchValue llloc (renderLiteral lll))) return mv
+      maybe (err (NotFound llloc "value" (renderLiteral lll))) return mv
 
 evalMustache :: Monad m => Format -> Format -> Positioned Expr -> BMX m Page
 evalMustache l r (expr :@ eloc) = case expr of
-  Lit _ -> err (ParserError eloc "Lit found in Mustache")
+  Lit _ -> err (TypeError eloc "subexpression" "literal")
   SExp lit ps hash -> do
     val <- evalExpr' DoNotCoerce lit ps hash
     render val
@@ -164,7 +164,7 @@ evalBlock l1 r1 l2 r2 (e :@ _) bp (block :@ _) (inverse :@ _) = case e of
   Lit l@(ll :@ lloc) -> do
     help <- helperFromLit l
     body <- maybe
-              (err (NoSuchHelper lloc (renderLiteral ll)))
+              (err (NotFound lloc "helper" (renderLiteral ll)))
               (runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
@@ -173,7 +173,7 @@ evalBlock l1 r1 l2 r2 (e :@ _) bp (block :@ _) (inverse :@ _) = case e of
     help <- helperFromLit h
     args <- mapM evalExpr p
     body <- maybe
-              (err (NoSuchHelper hloc (renderLiteral hh)))
+              (err (NotFound hloc "helper" (renderLiteral hh)))
               (runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used
@@ -235,7 +235,7 @@ evalRawBlock e t = evalBlock
 foldDecorators :: Monad m => [Positioned Stmt] -> BMX m Page -> BMX m Page
 foldDecorators sts k = foldl' foldFun k sts
   where
-    nsd (lit :@ loc) = err . NoSuchDecorator loc $ renderLiteral lit
+    nsd (lit :@ loc) = err . NotFound loc "decorator" $ renderLiteral lit
     --
     foldFun k' (DecoratorStmt _ (SExp e ps _hash :@ _) :@ _) = do
       deco <- decoratorFromLit e
@@ -264,7 +264,7 @@ foldHashPairs hps k = foldl' foldFun k hps
       redefineVariable key val' k'
     foldFun k' (HashPair (key :@ _) (Lit l :@ lloc) :@ _) = do
       val' <- valueFromLit l
-      maybe (err (NoSuchValue lloc (renderLiteral (depo l))))
+      maybe (err (NotFound lloc "value" (renderLiteral (depo l))))
             (\v -> redefineVariable key v k')
             val'
 
