@@ -46,6 +46,8 @@ renderParseError (ParseError loc text) = T.unlines [ header, indent 1 text ]
       SrcLoc _ _ -> "Parse error between [" <> renderSrcInfo loc <> "]: "
 
 indent :: Int -> Text -> Text
-indent n = T.unlines . fmap (pre <>) . T.lines
+indent n t = case fmap (pre <>) (T.lines t) of
+  [x] -> x
+  mor -> T.unlines (filter (not . T.null) mor)
   where
     pre = T.replicate n "  "

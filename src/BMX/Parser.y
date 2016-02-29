@@ -8,7 +8,6 @@ module BMX.Parser (
   , templateFromText
   ) where
 
-import           Data.Data (toConstr)
 import           Data.Either
 import           Data.List (last, take)
 import           Data.Maybe (isJust)
@@ -396,9 +395,14 @@ simple_id :: { Positioned Literal }:
 parseError :: [Positioned Token] -> Either ParseError a
 parseError [] = Left. ParseError NoInfo $ "unexpected end of input"
 parseError ((x :@ loc):xs) = Left . ParseError loc $ T.unlines [
-    "unhandled token: " <> (T.pack . show) x
-  , "followed by: " <> (T.pack . show . fmap (toConstr . depo)) (take 5 xs)
+    "unhandled token"
+  , indent 1 $ T.take width (tok <> context)
+  , indent 1 $ T.take width (T.replicate (T.length tok) "^")
   ]
+  where
+    tok = renderToken x
+    context = foldMap (renderToken . depo) xs
+    width = 60
 
 prg :: [Positioned Stmt] -> Positioned Template
 prg sts = Template (reverse sts) :@ listLoc sts
