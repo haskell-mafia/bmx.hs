@@ -23,7 +23,7 @@ import           P hiding (many, null)
 
 
 tokenise :: Text -> Either LexError [Positioned Token]
-tokenise t = bimap (LexError . T.pack . show) id (Parsec.parse tokens "handlebars" t)
+tokenise t = bimap (LexError . T.pack . show) id (Parsec.parse tokens "" t)
 
 tokens :: Parser [Positioned Token]
 tokens = mconcat <$> many token <* eof

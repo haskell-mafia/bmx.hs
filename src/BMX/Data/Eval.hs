@@ -29,9 +29,6 @@ module BMX.Data.Eval (
   , blockDecorator
   -- * Data variables
   , DataVar (..)
-  -- * Evaluation errors and results
-  , EvalError (..)
-  , renderEvalError
   -- * Evaluation monad
   , BMX (..)
   , runBMX
@@ -51,8 +48,10 @@ import           Safe (atMay, headMay, readMay)
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST
+import           BMX.Data.Error
 import           BMX.Data.Function
 import           BMX.Data.Page
+import           BMX.Data.Position
 import           BMX.Data.Value
 
 import           P
@@ -81,6 +80,10 @@ runBMXT st = (`runReaderT` st) . runEitherT . bmxT
 
 err :: Monad m => EvalError -> BMX m a
 err = BMX . left
+
+-- | Throw an error inside a 'BMX' action, with custom message.
+bmxError :: Monad m => Text -> BMX m a
+bmxError = err . UserError NoInfo -- FIX
 
 readContext :: Monad m => BMX m (Maybe Context)
 readContext = BMX $ ask >>= \es -> do
@@ -249,12 +252,12 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> Value -- ^ The value the binding should point to
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
-withVariable key UndefinedV _ = err (DefUndef key)
+withVariable key UndefinedV _ = err (DefUndef NoInfo key) -- FIX
 withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
       mv <- lookupValue key
-      maybe (return ()) (const $ err (ShadowValue key)) mv
+      maybe (return ()) (const $ err (Shadowing NoInfo "value" key)) mv -- FIX
 
 -- | Register a variable in the current context, then run some action
 -- in the 'BMX' monad.
@@ -268,7 +271,7 @@ redefineVariable ::
   -> Value -- ^ The value the binding should point to
   -> BMX m a -- ^ The action to run with modified 'Context'
   -> BMX m a
-redefineVariable key UndefinedV _ = err (DefUndef key)
+redefineVariable key UndefinedV _ = err (DefUndef NoInfo key) -- FIX
 redefineVariable key val k =
   BMX (local (modifyContext putVar) (bmxT k))
   where
@@ -302,13 +305,12 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
   where
     noShadowing = do
       mv <- lookupPartial (PathID name Nothing)
-      maybe (return ()) (const $ err (ShadowPartial name)) mv
+      maybe (return ()) (const $ err (Shadowing NoInfo "partial" name)) mv -- FIX locations
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
 -- | Look up a 'Value' in the current 'Context'.
 lookupValueByPath :: Monad m => Path -> BMX m (Maybe Value)
--- FIX replace Path with some public type - probably Text
 lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
   where
     -- Paths are allowed to start with parent / local references
@@ -321,8 +323,6 @@ lookupValueByPath i = BMX $ ask >>= (bmxT . go i . evalContext)
       _ -> going p x
     -- Traverse the rest of the path
     going p ctx = case (vname p, vrest p) of
-      (t@".", _) -> err (InvalidPath t)
-      (t@"..", _) -> err (InvalidPath t)
       (t, Nothing) -> return (resolve t ctx)
       (t, Just (_, p')) -> maybe (return Nothing) (step p') (resolve t ctx)
     --
@@ -378,49 +378,3 @@ lookupDecorator :: Monad m => Path -> BMX m (Maybe (Decorator m))
 lookupDecorator p = BMX $ do
   st <- ask
   return $ M.lookup (renderPath p) (evalDecorators st)
-
--- -----------------------------------------------------------------------------
--- Evaluation errors and warnings
-
-data EvalError
-  = TypeError !Text !Text -- ^ A type error, with "expected" and "actual" fields.
-  | HelperError !FunctionError -- ^ Incorrect arguments for a Helper.
-  | PartialError !FunctionError -- ^ Incorrect arguments for a Partial.
-  | DecoratorError !FunctionError -- ^ Incorrect arguments for a Decorator.
-  | InvalidPath !Text -- ^ A traversed Path had invalid format - likely "." or ".." misuse.
-  | NoSuchPartial !Text -- ^ An invoked partial was not found, and there was no failover template.
-  | NoSuchDecorator !Text -- ^ An invoked decorator was not found.
-  | NoSuchHelper !Text -- ^ An invoked block helper was not found.
-  | NoSuchValue !Text -- ^ A variable was not found, and it was unsafe to proceed.
-  | ParserError !Text -- ^ An absurd case - indicative of an error in the parser.
-  | Unrenderable !Text -- ^ Attempt to render an undefined, list or context.
-  | ShadowValue !Text -- ^ Attempt to redefine a variable in the current context
-  | ShadowPartial !Text -- ^ Attempt to redefine a partial
-  | ShadowHelper !Text -- ^ Attempt to redefine a helper
-  | ShadowDecorator !Text -- ^ Attempt to redefine a Decorator
-  | DefUndef !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
-  | UserError !Text -- ^ Custom error thrown from a helper.
-
-renderEvalError :: EvalError -> Text
-renderEvalError = \case
-  TypeError e a -> "Type error (expected " <> e <> ", actually " <> a <> ")"
-  HelperError fe -> "Helper misuse: " <> renderFunctionError fe
-  PartialError fe -> "Partial misuse: " <> renderFunctionError fe
-  DecoratorError fe -> "Decorator misuse: " <> renderFunctionError fe
-  InvalidPath t -> "Invalid path (" <> T.pack (show t) <> " can only appear at the start of a path)"
-  NoSuchPartial t -> "Partial '" <> t <> "' is not defined"
-  NoSuchDecorator t -> "Decorator '" <> t <> "' is not defined"
-  NoSuchHelper t -> "Helper '" <> t <> "' is not defined"
-  NoSuchValue t -> "Value '" <> t <> "' is not defined"
-  ParserError t -> "Parser error: " <> t
-  Unrenderable t -> "Invalid mustache: cannot render '" <> t <> "'"
-  ShadowValue t -> "The local definition of value '" <> t <> "' shadows an existing binding"
-  ShadowHelper t -> "The local definition of helper '" <> t <> "' shadows an existing binding"
-  ShadowPartial t -> "The local definition of partial '" <> t <> "' shadows an existing binding"
-  ShadowDecorator t -> "The local definition of decorator '" <> t <> "' shadows an existing binding"
-  DefUndef t -> "Attempt to define variable '" <> t <> "' as 'undefined' - no"
-  UserError t -> "Error thrown in user code: " <> t
-
--- | Throw an error inside a 'BMX' action, with custom message.
-bmxError :: Monad m => Text -> BMX m a
-bmxError = err . UserError

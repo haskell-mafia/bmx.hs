@@ -88,12 +88,12 @@ undef = one "undefined" isUndef
 
 runHelper :: Monad m => [Value] -> Helper m -> BMX m Value
 runHelper v (Helper help) = case help of
-  BlockHelperT _ -> err (TypeError "helper" "block helper")
+  BlockHelperT _ -> err (TypeError NoInfo "helper" "block helper") -- FIX
   HelperT h -> runFunctionT v [] h >>= either helpE return
 
 runBlockHelper :: Monad m => [Value] -> [Param] -> Template -> Template -> Helper m -> BMX m Page
 runBlockHelper v bparams ifp elsep (Helper help) = case help of
-  HelperT _ -> err (TypeError "block helper" "helper")
+  HelperT _ -> err (TypeError NoInfo "block helper" "helper") -- FIX
   BlockHelperT h -> do
     fun <- runFunctionT v bparams (h ifp elsep)
     either helpE return fun
@@ -106,17 +106,17 @@ runPartial (Partial (PartialT p)) = p
 -- | Run a Decorator, then a continuation in the same environment
 withDecorator :: Monad m => [Value] -> Decorator m -> BMX m Page -> BMX m Page
 withDecorator v (Decorator deco) k = case deco of
-  BlockDecoratorT _ -> err (TypeError "decorator" "block decorator")
+  BlockDecoratorT _ -> err (TypeError NoInfo "decorator" "block decorator") -- FIX
   DecoratorT d -> runFunctionT v [] (d k) >>= either decoE return
 
 -- | Run a block decorator, then a continuation
 withBlockDecorator :: Monad m => [Value] -> Template -> Decorator m -> BMX m Page -> BMX m Page
 withBlockDecorator v b (Decorator deco) k = case deco of
-  DecoratorT _ -> err (TypeError "block decorator" "decorator")
+  DecoratorT _ -> err (TypeError NoInfo "block decorator" "decorator") -- FIX locations
   BlockDecoratorT d -> runFunctionT v [] (d b k) >>= either decoE return
 
 helpE :: Monad m => FunctionError -> BMX m a
-helpE = err . HelperError
+helpE = err . FunctionError NoInfo "helper" -- FIX locations
 
 decoE :: Monad m => FunctionError -> BMX m a
-decoE = err . DecoratorError
+decoE = err . FunctionError NoInfo "decorator" -- FIX locations
