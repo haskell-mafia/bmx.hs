@@ -45,12 +45,8 @@ deriving instance Generic Fmt
 deriving instance Generic Format
 
 deriving instance Generic Tokens
-deriving instance Data Tokens
-deriving instance Typeable Tokens
 
 deriving instance Generic Token
-deriving instance Data Token
-deriving instance Typeable Token
 
 deriving instance Generic Page
 deriving instance Data Page
