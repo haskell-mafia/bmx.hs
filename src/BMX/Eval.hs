@@ -199,13 +199,19 @@ evalPartial l1 r1 l2 r2 pp extra hash errf = case pp of
   where
     pFormat b = page l1 r1 T.empty <> b <> page l2 r2 T.empty
     --
-    doPartial loc name p = withBreadcrumb (InPartial loc name) $ case extra of
-      Nothing -> liftM pFormat (withHash hash (runPartial p))
-      Just e -> do -- shift context
-        parm <- evalExpr e
-        maybe (err (TypeError (posi e) "partial" (renderValueType parm)))
-              (\c -> liftM pFormat (withContext c (withHash hash (runPartial p))))
-              (ctxVal parm)
+    doPartial' ctx hps p = liftM pFormat . withContext ctx . applyPartialHash hps $ runPartial p
+    doPartial'' hps p = liftM pFormat . applyPartialHash hps $ runPartial p
+    doPartial loc name p = withBreadcrumb (InPartial loc name) $ do
+      hps <- evalHash hash
+      case extra of
+        Nothing -> -- no context provided. inherit from parent
+          doPartial'' hps p
+
+        Just e -> do -- shift into custom context
+          parm <- evalExpr e
+          maybe (err (TypeError loc "partial" (renderValueType parm)))
+                (\c -> doPartial' c hps p)
+                (ctxVal parm)
     --
     ctxVal val = case val of
       ContextV c -> Just c
@@ -223,6 +229,26 @@ evalPartialBlock l1 r1 l2 r2 e ee hash (b :@ _) =
   where
     blockData = DataPartial (partial (eval b))
     failOver = const (eval b)
+
+-- | Hashes mean different things in different contexts:
+--
+-- 1. in a partial, {{> abc def=ghi }} is used to set variables for
+-- the partial's duration.
+-- Use @h <- evalHash; changeContextIfYouWant; applyPartialHash h@ for this.
+--
+-- 2. in a helper, {{ abc def=ghi }} provides an option called def,
+-- in a completely eparate namespace (called 'options').
+-- This is completely unimplemented.
+evalHash :: (Applicative m, Monad m) => Positioned Hash -> BMX m [(Text, Value)]
+evalHash (Hash hps :@ _hloc) = mapM evalHP hps
+  where
+    evalHP (HashPair (key :@ _kloc) val :@ _) = fmap ((,) key) $
+      case val of
+        e@(SExp _ _ _ :@ _) -> evalExpr e
+        Lit l :@ vloc -> valueFromLit l >>= maybe (err (NotFound vloc "value" (renderLiteral (depo l)))) return
+
+applyPartialHash :: (Applicative m, Monad m) => [(Text, Value)] -> BMX m a -> BMX m a
+applyPartialHash vars k0 = foldl' (\k (key, val) -> redefineVariable key val k) k0 vars
 
 -- | Evaluate a raw block.
 evalRawBlock :: Monad m => Positioned Expr -> Positioned Text -> BMX m Page
@@ -255,22 +281,6 @@ foldDecorators sts k = foldl' foldFun k sts
       maybe (nsd e) (\d -> withBlockDecorator [] block d k') deco
     --
     foldFun k' _ = k'
-
--- | Register each hashpair in the current context, then run a continuation.
-foldHashPairs :: Monad m => [Positioned HashPair] -> BMX m a -> BMX m a
-foldHashPairs hps k = foldl' foldFun k hps
-  where
-    foldFun k' (HashPair (key :@ _) val@(SExp _ _ _ :@ _) :@ _) = do
-      val' <- evalExpr val
-      redefineVariable key val' k'
-    foldFun k' (HashPair (key :@ _) (Lit l :@ lloc) :@ _) = do
-      val' <- valueFromLit l
-      maybe (err (NotFound lloc "value" (renderLiteral (depo l))))
-            (\v -> redefineVariable key v k')
-            val'
-
-withHash :: Monad m => Positioned Hash -> BMX m a -> BMX m a
-withHash (Hash hps :@ _) = foldHashPairs hps
 
 helperFromLit :: Monad m => Positioned Literal -> BMX m (Maybe (Helper m))
 helperFromLit (lit :@ _) = case lit of

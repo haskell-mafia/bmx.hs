@@ -228,6 +228,11 @@ prop_eval_unit_hash_override = once $
   (testContext `usingPartials` [("authorid", partialFromTemplate [bmx| {{title}} |])])
     === pure " My First Blog Post! "
 
+prop_eval_unit_hash_order = once $
+  rendersTo "{{> parti author title=title }}"
+  (testContext `usingPartials` [("parti", partialFromTemplate [bmx|{{title}}|])])
+    === pure "My First Blog Post!"
+
 -- a dynamic partial with custom context and a hash
 prop_eval_unit_partial_dynamic = once $
   rendersTo "{{> (lookup . 'component') author arg=555}}"
