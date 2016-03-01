@@ -130,12 +130,13 @@ packState bst = do
     , evalHelpers = helpers
     , evalPartials = partials
     , evalDecorators = decorators
+    , evalBreadcrumbs = mempty
     }
 
-mapUnique :: (Text -> EvalError) -> [(Text, a)] -> Either BMXError (Map Text a)
+mapUnique :: (Text -> EvalErrorT) -> [(Text, a)] -> Either BMXError (Map Text a)
 mapUnique e = foldM foldFun M.empty
   where foldFun m (k, v)  = if M.member k m
-          then Left (BMXEvalError (e k))
+          then Left (BMXEvalError (EvalError (e k) mempty))
           else Right (M.insert k v m)
 
 boxContext :: [(Text, BMXValue)] -> Either BMXError Context

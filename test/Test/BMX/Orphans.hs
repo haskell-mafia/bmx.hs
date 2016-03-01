@@ -15,7 +15,12 @@ import           BMX.Data
 
 import           P
 
+deriving instance Eq Breadcrumbs
+deriving instance Eq Breadcrumb
+
 deriving instance Eq EvalError
+deriving instance Eq EvalErrorT
+
 deriving instance Eq FunctionError
 
 deriving instance Eq BMXError

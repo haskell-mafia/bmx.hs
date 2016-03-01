@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -11,6 +12,9 @@ module BMX.Data.Error (
   , renderFunctionError
   , EvalError (..)
   , renderEvalError
+  , EvalErrorT (..)
+  , Breadcrumbs (..)
+  , Breadcrumb (..)
   , indent
   ) where
 
@@ -55,7 +59,7 @@ renderParseError (ParseError loc text) = T.unlines [ header, indent 1 text ]
   where
     header = case loc of
       NoInfo -> "Parse error: "
-      SrcLoc _ _ -> "Parse error between [" <> renderSrcInfo loc <> "]: "
+      SrcLoc _ _ -> "Parse error at " <> renderSrcInfo loc <> ": "
 
 indent :: Int -> Text -> Text
 indent n t = case fmap (pre <>) (T.lines t) of
@@ -74,7 +78,6 @@ data FunctionError
   | EOF
   | NoParams
 
-
 renderFunctionError :: FunctionError -> Text
 renderFunctionError = \case
   Mismatch e a -> "Type mismatch (expected " <> e <> ", got " <> a <> ")"
@@ -86,7 +89,30 @@ renderFunctionError = \case
 -- -----------------------------------------------------------------------------
 -- Evaluation errors
 
-data EvalError
+data EvalError = EvalError EvalErrorT Breadcrumbs
+
+newtype Breadcrumbs = Breadcrumbs { crumbs :: [Breadcrumb] }
+  deriving (Monoid)
+
+-- These are used for backtraces when errors occur
+-- we're either in a Helper, a Partial, a Decorator, or a leaf
+data Breadcrumb
+  = InHelper !SrcInfo !Text
+  | InPartial !SrcInfo !Text
+  | InDecorator !SrcInfo !Text
+  | InLeaf !SrcInfo !Text !Text
+
+renderBreadcrumbs :: Breadcrumbs -> Text
+renderBreadcrumbs (Breadcrumbs bcs) = T.unlines (fmap renderBreadcrumb bcs)
+
+renderBreadcrumb :: Breadcrumb -> Text
+renderBreadcrumb bc = case bc of
+  InHelper    loc    name -> "In helper '" <> name <> "' invoked at " <> renderSrcInfo loc
+  InPartial   loc    name -> "In partial '" <> name <> "' invoked at " <> renderSrcInfo loc
+  InDecorator loc    name -> "In decorator '" <> name <> "' invoked at " <> renderSrcInfo loc
+  InLeaf      loc ty name -> "In " <> ty <> " '" <> name <> "' at " <> renderSrcInfo loc
+
+data EvalErrorT
   = TypeError       !SrcInfo !Text !Text -- ^ A type error, with "expected" and "actual" fields.
   | FunctionError   !SrcInfo !Text !FunctionError -- ^ Arity / type error for a helper / partial / decorator
   | NotFound        !SrcInfo !Text !Text -- ^ Failed lookup with no failover
@@ -95,13 +121,8 @@ data EvalError
   | DefUndef        !SrcInfo !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
   | UserError       !SrcInfo !Text -- ^ Custom error thrown from a helper.
 
-ree :: SrcInfo -> Text -> Text
-ree loc t = T.unlines [ header, indent 1 t ]
-  where
-    header = "Rendering error between [" <> renderSrcInfo loc <> "]:"
-
 renderEvalError :: EvalError -> Text
-renderEvalError = \case
+renderEvalError (EvalError err bcs) = case err of
   TypeError       loc e a  -> ree loc $ "Type error (expected " <> e <> ", actually " <> a <> ")"
   NotFound        loc t v  -> ree loc $ "Invoked " <> t <> " '" <> v <> "' is not defined"
   Unrenderable    loc t    -> ree loc $ "Invalid mustache: cannot render '" <> t <> "'"
@@ -112,4 +133,7 @@ renderEvalError = \case
       "Error applying " <> t
     , indent 1 $ renderFunctionError fe
     ]
-
+  where
+    ree loc t = T.unlines [ header loc, indent 1 t, indent 2 (renderBreadcrumbs bcs) ]
+    header loc@(SrcLoc _ _) = "Rendering error at " <> renderSrcInfo loc <> ":"
+    header NoInfo = "Rendering error:"
