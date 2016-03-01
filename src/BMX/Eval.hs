@@ -200,12 +200,11 @@ evalPartial l1 r1 l2 r2 pp extra hash errf = case pp of
     pFormat b = page l1 r1 T.empty <> b <> page l2 r2 T.empty
     --
     doPartial' ctx hps p = liftM pFormat . withContext ctx . applyPartialHash hps $ runPartial p
-    doPartial'' hps p = liftM pFormat . applyPartialHash hps $ runPartial p
     doPartial loc name p = withBreadcrumb (InPartial loc name) $ do
       hps <- evalHash hash
       case extra of
-        Nothing -> -- no context provided. inherit from parent
-          doPartial'' hps p
+        Nothing -> -- no context provided. shift into empty context
+          doPartial' mempty hps p
 
         Just e -> do -- shift into custom context
           parm <- evalExpr e
