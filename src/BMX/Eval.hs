@@ -96,7 +96,8 @@ evalStmt (stmt :@ _loc) = case stmt of
 
   -- Special handler that resolves and inlines the partial
   PartialStmt (Fmt l r) e ee hash ->
-    evalPartial l Verbatim r Verbatim e ee hash (\(lit :@ lloc) -> err . NotFound lloc "partial" $ renderLiteral lit)
+    evalPartial l Verbatim r Verbatim e ee hash
+      $ \(lit :@ lloc) -> err (NotFound lloc "partial" (renderLiteral lit))
 
   -- Special handler that registers @partial-block, and fails over if partial not found
   PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee hash b ->
@@ -118,22 +119,22 @@ evalExpr (expr :@ _) = case expr of
   (Lit l) -> evalExpr' Coerce l [] mempty
 
 evalExpr' :: Monad m => Coerce -> Positioned Literal -> [Positioned Expr] -> Positioned Hash -> BMX m Value
-evalExpr' b l@(_ :@ lloc) p _hash = do
+evalExpr' b l@(ll :@ lloc) p _hash = do
   help <- helperFromLit l
   vals <- mapM evalExpr p
   maybe
     (if null p then valueLookupCoerce b l else err (TypeError lloc "helper" "value"))
-    (runHelper vals)
+    (withBreadcrumb (InHelper lloc (renderLiteral ll)) . runHelper vals)
     help
   where
-    valueLookupCoerce Coerce ll = do
-      mv <- valueFromLit ll
+    valueLookupCoerce Coerce ll' = do
+      mv <- valueFromLit ll'
       -- We coerce undefined values to UndefinedV. We only tolerate this because
       -- the expression is an argument to a helper, not something we're rendering.
       -- e.g. the "if" helper relies on this behaviour.
       maybe (return UndefinedV) return mv
-    valueLookupCoerce DoNotCoerce ll@(lll :@ llloc) = do
-      mv <- valueFromLit ll
+    valueLookupCoerce DoNotCoerce ll'@(lll :@ llloc) = do
+      mv <- valueFromLit ll'
       -- Refuse to coerce - fail if not found.
       -- Could rely on evalMustache's 'render' check, but this provides a better error
       maybe (err (NotFound llloc "value" (renderLiteral lll))) return mv
@@ -165,7 +166,7 @@ evalBlock l1 r1 l2 r2 (e :@ _) bp (block :@ _) (inverse :@ _) = case e of
     help <- helperFromLit l
     body <- maybe
               (err (NotFound lloc "helper" (renderLiteral ll)))
-              (runBlockHelper [] (toParams bp) block inverse)
+              (withBreadcrumb (InHelper lloc (renderLiteral ll)) . runBlockHelper [] (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used. a block can strip its rendered contents
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -174,7 +175,7 @@ evalBlock l1 r1 l2 r2 (e :@ _) bp (block :@ _) (inverse :@ _) = case e of
     args <- mapM evalExpr p
     body <- maybe
               (err (NotFound hloc "helper" (renderLiteral hh)))
-              (runBlockHelper args (toParams bp) block inverse)
+              (withBreadcrumb (InHelper hloc (renderLiteral hh)) . runBlockHelper args (toParams bp) block inverse)
               help
     -- Inner and outer formatting are both used
     return (page l1 r1 T.empty <> body <> page l2 r2 T.empty)
@@ -190,15 +191,15 @@ evalPartial l1 r1 l2 r2 pp extra hash errf = case pp of
     val <- evalExpr e
     case val of
       StringV part -> if not (T.null part)
-        then lookupPartial (PathID part Nothing) >>= maybe (errf (StringL part :@ loc)) doPartial
+        then lookupPartial (PathID part Nothing) >>= maybe (errf (StringL part :@ loc)) (doPartial loc part)
         else errf (StringL part :@ loc)
       v -> err (TypeError loc "string" (renderValueType v))
   -- Regular partial - look it right up alright
-  (Lit p :@ _loc) -> partialFromLit p >>= maybe (errf p) doPartial
+  (Lit p :@ loc) -> partialFromLit p >>= maybe (errf p) (doPartial loc (renderLiteral (depo p)))
   where
     pFormat b = page l1 r1 T.empty <> b <> page l2 r2 T.empty
     --
-    doPartial p = case extra of
+    doPartial loc name p = withBreadcrumb (InPartial loc name) $ case extra of
       Nothing -> liftM pFormat (withHash hash (runPartial p))
       Just e -> do -- shift context
         parm <- evalExpr e
@@ -286,7 +287,7 @@ partialFromLit (lit :@ loc) = case lit of
     return $ case d of
       Just (DataPartial part) -> Just part
       _ -> Nothing
-  _ -> err (TypeError loc "partial" "literal")
+  _ -> err (TypeError loc "partial" "literal") -- FIX render type
 
 decoratorFromLit :: Monad m => Positioned Literal -> BMX m (Maybe (Decorator m))
 decoratorFromLit (lit :@ loc) = case lit of

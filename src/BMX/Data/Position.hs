@@ -13,6 +13,7 @@ module BMX.Data.Position (
   , between
   , renderPosition
   , renderSrcInfo
+  , renderSrcInfoRange
   ) where
 
 import           Data.Data (Data, Typeable)
@@ -28,7 +29,7 @@ data Position = Position {
   } deriving (Data, Eq, Ord, Show, Typeable)
 
 renderPosition :: Position -> Text
-renderPosition pos = "Line " <> tshow (posLine pos) <> ", Col " <> tshow (posColumn pos)
+renderPosition pos = "line " <> tshow (posLine pos) <> ", col " <> tshow (posColumn pos)
 
 -- | A range in the source file.
 data SrcInfo
@@ -44,7 +45,12 @@ instance Monoid SrcInfo where
 
 renderSrcInfo :: SrcInfo -> Text
 renderSrcInfo NoInfo = "<no location info>"
-renderSrcInfo (SrcLoc a b) = renderPosition a <> " -- " <> renderPosition b
+renderSrcInfo (SrcLoc a _) = renderPosition a
+
+renderSrcInfoRange :: SrcInfo -> Text
+renderSrcInfoRange NoInfo = "<no location info>"
+renderSrcInfoRange (SrcLoc a b) = renderPosition a <> " -- " <> renderPosition b
+
 
 -- | A value and character range pair
 data Positioned a = !a :@ !SrcInfo

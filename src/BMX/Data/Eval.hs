@@ -18,6 +18,9 @@ module BMX.Data.Eval (
   , lookupHelper
   , lookupPartial
   , lookupDecorator
+  -- * Stack of info used to generate error messages
+  , Breadcrumb (..)
+  , withBreadcrumb
   -- * Abstract user-facing types for Partial, Decorator, Helper
   , Helper (..)
   , helper
@@ -78,12 +81,14 @@ runBMX st = runIdentity . runBMXT st
 runBMXT :: Monad m => EvalState m -> BMX m a -> m (Either EvalError a)
 runBMXT st = (`runReaderT` st) . runEitherT . bmxT
 
-err :: Monad m => EvalError -> BMX m a
-err = BMX . left
+err :: Monad m => EvalErrorT -> BMX m a
+err e = BMX $ do
+  es <- ask
+  left $ EvalError e (evalBreadcrumbs es)
 
 -- | Throw an error inside a 'BMX' action, with custom message.
 bmxError :: Monad m => Text -> BMX m a
-bmxError = err . UserError NoInfo -- FIX
+bmxError = err . UserError NoInfo
 
 readContext :: Monad m => BMX m (Maybe Context)
 readContext = BMX $ ask >>= \es -> do
@@ -166,6 +171,7 @@ blockDecorator = Decorator . BlockDecoratorT
 partial :: Monad m => BMX m Page -> Partial m
 partial = Partial . PartialT
 
+
 -- -----------------------------------------------------------------------------
 -- Data variables (special vars prefixed with an @)
 
@@ -182,6 +188,7 @@ data DataVar m
   | DataPartial (Partial m)
   | DataHelper (Helper m)
   | DataDecorator (Decorator m)
+
 
 -- -----------------------------------------------------------------------------
 -- Evaluation state
@@ -204,6 +211,8 @@ data EvalState m = EvalState
   , evalPartials :: !(Map Text (Partial m))
     -- | All currently available decorators.
   , evalDecorators :: !(Map Text (Decorator m))
+    -- | Stack of invocations, used for error messages
+  , evalBreadcrumbs :: !Breadcrumbs
   }
 
 instance Monoid (EvalState m) where
@@ -213,6 +222,7 @@ instance Monoid (EvalState m) where
     , evalHelpers = mempty
     , evalPartials = mempty
     , evalDecorators = mempty
+    , evalBreadcrumbs = mempty
     }
   mappend !a !b = EvalState {
       evalContext = evalContext a <> evalContext b
@@ -220,11 +230,17 @@ instance Monoid (EvalState m) where
     , evalHelpers = evalHelpers a `M.union` evalHelpers b
     , evalPartials = evalPartials a `M.union` evalPartials b
     , evalDecorators = evalDecorators a `M.union` evalDecorators b
+    , evalBreadcrumbs = evalBreadcrumbs a <> evalBreadcrumbs b
     }
+
+withBreadcrumb :: Monad m => Breadcrumb -> BMX m a -> BMX m a
+withBreadcrumb b k = BMX $ local (pushCrumb b) (bmxT k)
+  where
+    pushCrumb c es = es { evalBreadcrumbs = Breadcrumbs (c : crumbs (evalBreadcrumbs es)) }
 
 -- | Push a context to the top of the context stack.
 pushContext :: Monad m => Context -> EvalState m -> EvalState m
-pushContext !c es = es { evalContext = c : evalContext es }
+pushContext c es = es { evalContext = c : evalContext es }
 
 -- | Replace the current context with another.
 modifyContext :: Monad m => (Maybe Context -> Context) -> EvalState m -> EvalState m
@@ -252,12 +268,12 @@ withVariable :: Monad m => Text -- ^ The name to be bound
              -> Value -- ^ The value the binding should point to
              -> BMX m a -- ^ The action to run with modified 'Context'
              -> BMX m a
-withVariable key UndefinedV _ = err (DefUndef NoInfo key) -- FIX
+withVariable key UndefinedV _ = err (DefUndef NoInfo key)
 withVariable key val k = noShadowing >> redefineVariable key val k
   where
     noShadowing = do
       mv <- lookupValue key
-      maybe (return ()) (const $ err (Shadowing NoInfo "value" key)) mv -- FIX
+      maybe (return ()) (const $ err (Shadowing NoInfo "value" key)) mv
 
 -- | Register a variable in the current context, then run some action
 -- in the 'BMX' monad.
@@ -271,7 +287,7 @@ redefineVariable ::
   -> Value -- ^ The value the binding should point to
   -> BMX m a -- ^ The action to run with modified 'Context'
   -> BMX m a
-redefineVariable key UndefinedV _ = err (DefUndef NoInfo key) -- FIX
+redefineVariable key UndefinedV _ = err (DefUndef NoInfo key)
 redefineVariable key val k =
   BMX (local (modifyContext putVar) (bmxT k))
   where
@@ -305,7 +321,7 @@ withPartial name p k = noShadowing >> BMX (local addPartial (bmxT k))
   where
     noShadowing = do
       mv <- lookupPartial (PathID name Nothing)
-      maybe (return ()) (const $ err (Shadowing NoInfo "partial" name)) mv -- FIX locations
+      maybe (return ()) (const $ err (Shadowing NoInfo "partial" name)) mv
     --
     addPartial es = es { evalPartials = M.insert name p (evalPartials es) }
 
