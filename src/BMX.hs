@@ -4,7 +4,7 @@
 -- embedded in Haskell for static or server-side rendering.
 --
 -- BMX templates can be written and maintained without any Haskell
--- knowledge, while the rendering logic (described through 'Helper'
+-- knowledge, while the control flow (described through 'Helper'
 -- functions) can be extended or replaced by the user.
 
 module BMX (
@@ -92,12 +92,29 @@ import           BMX.TH (bmx, templateFile, partialFile, partialDir)
 -- (object) will result in an error. Failed lookups will not render as
 -- empty strings. Use `if` or `unless` explicitly instead.
 --
--- * Shadowing is restricted.
+-- * Shadowing is restricted. Redefining variables or partials while
+-- executing is difficult.
 --
 -- * Heavy restrictions on mutable state. Updates are restricted to
 -- the current scope.
 --
+-- * Partials do not inherit their parent context, unless it is
+-- manually passed with @{{> partialName . }}@. Pass parameters
+-- explicitly using hash syntax instead, e.g.
+-- @{{> partialName id=id name=someone.name }}@.
+--
 -- * To Be Documented
+--
+-- A few Handlebars features have not been implemented:
+--
+-- * Option hashes for helpers are not implemented, though the syntax
+-- will parse.
+--
+-- * Partial blocks are evaluated in the outer context, as per
+-- Handlebars, but this is done eagerly; it is thus not possible to
+-- override variables or provide a custom context to a partial block.
+-- i.e. in @{{> \@partial-block abc def=ghi }}@, @abc@ and @def@ have
+-- no effect.
 
 
 -- $templates BMX templates are syntactically compatible with
