@@ -200,12 +200,11 @@ evalPartial l1 r1 l2 r2 pp extra hash errf = case pp of
     pFormat b = page l1 r1 T.empty <> b <> page l2 r2 T.empty
     --
     doPartial' ctx hps p = liftM pFormat . withContext ctx . applyPartialHash hps $ runPartial p
-    doPartial'' hps p = liftM pFormat . applyPartialHash hps $ runPartial p
     doPartial loc name p = withBreadcrumb (InPartial loc name) $ do
       hps <- evalHash hash
       case extra of
-        Nothing -> -- no context provided. inherit from parent
-          doPartial'' hps p
+        Nothing -> -- no context provided. shift into empty context
+          doPartial' mempty hps p
 
         Just e -> do -- shift into custom context
           parm <- evalExpr e
@@ -222,13 +221,14 @@ evalPartialBlock :: (Applicative m, Monad m)
                  -> Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash
                  -> Positioned Template
                  -> BMX m Page
-evalPartialBlock l1 r1 l2 r2 e ee hash (b :@ _) =
-  -- Register b as @partial-block
+evalPartialBlock l1 r1 l2 r2 e ee hash (b :@ _) = do
+  -- Evaluate b in the current context, register result as @partial-block
+  block <- eval b
   -- Call evalPartial with custom error function (const (eval b)) - failover
-  withData "partial-block" blockData (evalPartial l1 r1 l2 r2 e ee hash failOver)
+  withData "partial-block" (blockData block) (evalPartial l1 r1 l2 r2 e ee hash (failOver block))
   where
-    blockData = DataPartial (partial (eval b))
-    failOver = const (eval b)
+    blockData bl = DataPartial (partial (return bl))
+    failOver bl = const (return bl)
 
 -- | Hashes mean different things in different contexts:
 --

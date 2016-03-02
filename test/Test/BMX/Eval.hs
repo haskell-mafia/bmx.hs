@@ -245,6 +245,11 @@ prop_eval_unit_partial_block_data = once $
   (testContext `usingPartials` [("mypartial", testPartialBlock)])
     === pure "block = My First Blog Post!"
 
+-- a partial block is evaluated using outer scope, not inner
+prop_eval_unit_partial_block_scoping = once . isLeft $
+  rendersTo "{{#> mypartial author }}{{name}}{{/mypartal}}"
+  (testContext `usingPartials` [("mypartial", testPartialBlock)])
+
 -- Can look up item in list
 prop_eval_unit_list_index_1 = once $
   rendersTo "{{ list.[0] }}" testContext === pure "why"
