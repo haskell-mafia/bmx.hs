@@ -128,3 +128,18 @@ test-suite test
                      , blaze-html
                      , mtl
                      , transformers
+                     , deepseq
+
+
+benchmark bench
+  type:                exitcode-stdio-1.0
+  main-is:             bench.hs
+  ghc-options:         -Wall -threaded -O2
+  hs-source-dirs:      test
+  build-depends:       base
+                     , ambiata-bmx
+                     , ambiata-p
+                     , text
+                     , criterion                       == 1.1.*
+                     , QuickCheck
+                     , deepseq

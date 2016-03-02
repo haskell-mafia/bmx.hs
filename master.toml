@@ -5,6 +5,9 @@
 
 [build.dist]
   MAFIA_HAPPY = "true"
+  BENCH = "true"
+  PUBLISH_BENCH = "bmx.hs"
 
 [build.branches]
   MAFIA_HAPPY = "true"
+  BENCH = "true"
