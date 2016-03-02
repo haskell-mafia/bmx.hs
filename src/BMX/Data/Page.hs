@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 module BMX.Data.Page (
@@ -7,12 +8,16 @@ module BMX.Data.Page (
   , content
   , renderPage
   , escapePage
+  , Chunk (..)
+  , singleChunk
   ) where
 
 import           Data.Char (isSpace)
+import           Data.DList (DList)
+import qualified Data.DList as DL
 import           Data.Text (Text)
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as T (toStrict)
+import qualified Data.Text as TS
+import qualified Data.Text.Lazy as TL
 import qualified Text.Blaze.Html as B
 import qualified Text.Blaze.Html.Renderer.Text as B
 
@@ -22,12 +27,12 @@ import           P
 
 -- | The type of rendered templates.
 data Page
-  = Formatter !Format !Format !Text !Text !Text
-  | Formattee !Text
+  = Formatter !Format !Format Chunk Chunk Chunk
+  | Formattee Chunk
   deriving (Show, Eq)
 
 instance Monoid Page where
-  mempty = Formattee T.empty
+  mempty = Formattee (singleChunk TS.empty)
   mappend (Formattee c1) (Formattee c2) = Formattee (c1 <> c2)
   mappend (Formattee c) (Formatter lf rf body lt rt) =
     let lhs = formatEnd lf c
@@ -43,6 +48,14 @@ instance Monoid Page where
     let rt1' = formatEnd lf2 rt1
         lt2' = formatStart rf1 lt2
     in Formatter lf1 rf2 (body1 <> rt1' <> lt2' <> body2) lt1 rt2
+
+-- Chunk has an O(1) mappend that we rely on to achieve linear time
+newtype Chunk = Chunk { unChunk :: DList Text }
+  deriving (Monoid, Show)
+
+-- Don't care about Chunk internals
+instance Eq Chunk where
+  (==) = (==) `on` renderChunkStrict
 
 {-
 
@@ -70,33 +83,53 @@ FIX: Partials need to know about their indentation level. This can probably be d
 
 -}
 
+singleChunk :: Text -> Chunk
+singleChunk = Chunk . DL.singleton
+
+renderChunkStrict :: Chunk -> Text
+renderChunkStrict = TL.toStrict . TL.fromChunks . DL.toList . unChunk
+
 page :: Format -> Format -> Text -> Page
-page l r body = Formatter l r body T.empty T.empty
+page l r body = Formatter l r (singleChunk body) mempty mempty
 
 content :: Text -> Page
-content = Formattee
+content = Formattee . singleChunk
 
-newFormat :: Format -> Text -> Format
-newFormat Verbatim _ = Verbatim
-newFormat Strip t = if T.all isSpace t then Strip else Verbatim
+newFormat :: Format -> Chunk -> Format
+newFormat f (Chunk ls) = case f of
+  Verbatim -> Verbatim
+  Strip -> if and (fmap (TS.all isSpace) ls) then Strip else Verbatim
 
 renderPage :: Page -> Text
-renderPage (Formatter _ _ body lt rt) = lt <> body <> rt
-renderPage (Formattee t) = t
+renderPage p = renderChunkStrict $ case p of
+  Formatter _ _ body lt rt -> lt <> body <> rt
+  Formattee t -> t
 
 -- | Apply formatting to the end of a page
-formatEnd :: Format -> Text -> Text
-formatEnd Verbatim t = t
-formatEnd Strip t = stripLeft t
-  where stripLeft = T.dropWhileEnd isSpace
+formatEnd :: Format -> Chunk -> Chunk
+formatEnd f c = case f of
+  Verbatim -> c
+  Strip -> stripLeft c
+  where
+    stripLeft (Chunk ls) = Chunk . fst $ foldr ffun (mempty, False) ls
+    ffun t (dl, True) = (DL.cons t dl, True)
+    ffun t (dl, False) =
+      let newT = TS.dropWhileEnd isSpace t
+      in if newT == TS.empty then (dl, False) else (DL.snoc dl newT, True)
 
 -- | Apply formatting to the start of a page
-formatStart :: Format -> Text -> Text
-formatStart Verbatim t = t
-formatStart Strip t = stripRight t
-  where stripRight = T.dropWhile isSpace
+formatStart :: Format -> Chunk -> Chunk
+formatStart f c = case f of
+  Verbatim -> c
+  Strip -> stripRight c
+  where
+    stripRight (Chunk ls) = Chunk . fst $ foldl' ffun (mempty, False) ls
+    ffun (dl, True) t = (DL.snoc dl t, True)
+    ffun (dl, False) t =
+      let newT = TS.dropWhile isSpace t
+      in if newT == TS.empty then (dl, False) else (DL.snoc dl newT, True)
 
 escapePage :: Page -> Page
 escapePage p@(Formattee _) = p
 escapePage (Formatter lf rf body lt rt) = Formatter lf rf (escapeText body) lt rt
-  where escapeText = T.toStrict . B.renderHtml . B.toHtml
+  where escapeText (Chunk ls) = Chunk $ fmap (TL.toStrict . B.renderHtml . B.toHtml) ls

@@ -8,6 +8,7 @@
 module Test.BMX.Orphans where
 
 import           Data.Data
+import           Data.String (IsString (..))
 import qualified Data.Text as T
 import           GHC.Generics
 
@@ -53,10 +54,6 @@ deriving instance Generic Tokens
 
 deriving instance Generic Token
 
-deriving instance Generic Page
-deriving instance Data Page
-deriving instance Typeable Page
-
 deriving instance Generic Context
 deriving instance Data Context
 deriving instance Typeable Context
@@ -74,3 +71,6 @@ deriving instance Generic Position
 deriving instance Generic SrcInfo
 
 deriving instance Generic a => Generic (Positioned a)
+
+instance IsString Chunk where
+  fromString = singleChunk . fromString
