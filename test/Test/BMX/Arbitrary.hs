@@ -6,6 +6,7 @@ module Test.BMX.Arbitrary where
 
 import           Data.Char (isAlpha)
 import           Data.Data
+import qualified Data.DList as DL
 import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (nubBy, zipWith)
@@ -108,6 +109,10 @@ instance Arbitrary Page where
     where bodies = (\t -> Formatter lf rf t t2 t3) <$> shrink t1
           leftsh = (\t -> Formatter lf rf t1 t t3) <$> shrink t2
           rightsh = (\t -> Formatter lf rf t1 t2 t) <$> shrink t3
+
+instance Arbitrary Chunk where
+  arbitrary = Chunk . DL.fromList <$> arbitrary
+  shrink (Chunk xs) = Chunk . DL.fromList <$> shrink (DL.toList xs)
 
 --------------------------------------------------------------------------------
 -- AST / parser generators

@@ -32,6 +32,7 @@ library
                      , scientific                      == 0.3.*
                      , filemanip                       == 0.3.*
                      , filepath                        == 1.3.*
+                     , dlist                           == 0.7.*
 
   build-tools:         happy
 
@@ -129,6 +130,7 @@ test-suite test
                      , mtl
                      , transformers
                      , deepseq
+                     , dlist
 
 
 benchmark bench
