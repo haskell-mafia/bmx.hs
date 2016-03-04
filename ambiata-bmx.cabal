@@ -71,8 +71,6 @@ library
                        BMX.Data.Token                       
                        BMX.Data.Value
 
-                       Paths_ambiata_bmx
-
 executable bmx
   ghc-options:      -Wall -threaded -O2
   build-depends:
