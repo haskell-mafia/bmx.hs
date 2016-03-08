@@ -1,0 +1,20 @@
+name:                  ambiata-bmx-test
+version:               0.0.1
+cabal-version:         >= 1.8
+build-type:            Simple
+
+library
+  build-depends:
+                       base
+                     , ambiata-bmx
+                     , ambiata-p
+                     , containers                      == 0.5.*
+                     , dlist                           == 0.7.*
+                     , QuickCheck
+                     , quickcheck-instances
+                     , syb
+                     , text
+
+  exposed-modules:
+                       Test.BMX.Arbitrary
+                       Test.BMX.Orphans
