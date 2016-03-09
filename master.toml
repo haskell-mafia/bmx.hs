@@ -11,3 +11,8 @@
 [build.branches]
   MAFIA_HAPPY = "true"
   BENCH = "true"
+
+[build.cabal]
+  MAFIA_HAPPY = "true"
+  [build.cabal.master]
+    runner = "bin/ci.cabal"
