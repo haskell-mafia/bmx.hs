@@ -98,10 +98,6 @@ each = blockHelper $ \thenp elsep -> do
       listIdx i k = withName par2 (NumberV (realToFrac i)) k
   liftBMX go
 
-withName :: (Applicative m, Monad m) => Maybe Param -> Value -> BMX m a -> BMX m a
-withName Nothing _ k = k
-withName (Just (Param n)) v k = withVariable n v k
-
 truthy :: Value -> Bool
 truthy v = case v of
   BoolV b -> b

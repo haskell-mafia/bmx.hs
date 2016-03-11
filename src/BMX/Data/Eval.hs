@@ -8,6 +8,7 @@ module BMX.Data.Eval (
     EvalState (..)
   , pushContext
   , withContext
+  , withName
   , withVariable
   , redefineVariable
   , withData
@@ -257,6 +258,13 @@ withContext :: Monad m => Context -- ^ The new top-level 'Context'
             -> BMX m a -- ^ The action to run with modified 'Context'
             -> BMX m a
 withContext !c b = BMX $ local (pushContext c) (bmxT b)
+
+-- | A convenience function that optionally bind a context value to a Param's name
+-- | if that param is present, eg. if a block helper uses @{{#... as |x| }}@.
+-- | (This just acts as a pass-through if a Param isn't given.)
+withName :: (Applicative m, Monad m) => Maybe Param -> Value -> BMX m a -> BMX m a
+withName Nothing _ k = k
+withName (Just (Param n)) v k = withVariable n v k
 
 -- | Register a variable in the current context, then run some action
 -- in the 'BMX' monad.

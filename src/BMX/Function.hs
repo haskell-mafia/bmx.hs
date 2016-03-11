@@ -45,6 +45,7 @@ module BMX.Function (
   , withVariable
   , redefineVariable
   , withContext
+  , withName
   , withData
   , withPartial
   -- ** Querying stuff
