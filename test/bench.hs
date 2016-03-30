@@ -4,6 +4,7 @@
 {-# LANGUAGE QuasiQuotes #-}
 
 import           BMX
+import           BMX.Lexer (tokenise)
 
 import           Criterion.Main
 import           Criterion.Types (Config (..))
@@ -79,11 +80,17 @@ main = do
             reportFile = Just "dist/build/bmx.hs-bench.html"
           , csvFile    = Just "dist/build/bmx.hs-bench.csv"
           }
+      flatLexBm = whnf tokenise . flatTemplateTextStrict
       flatParseBm = whnf templateFromText . flatTemplateTextStrict
       flatRenderBm = whnf flatRenderer . flatTemplate
 
   defaultMainWith cfg [
-      bgroup "templateFromText" [
+      bgroup "tokenise" [
+          bench "flat-100"    $ flatLexBm 100
+        , bench "flat-500"    $ flatLexBm 500
+        , bench "flat-1000"   $ flatLexBm 1000
+        ]
+    , bgroup "templateFromText" [
           bench "flat-100"    $ flatParseBm 100
         , bench "flat-500"    $ flatParseBm 500
         , bench "flat-1000"   $ flatParseBm 1000
