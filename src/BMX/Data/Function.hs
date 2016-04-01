@@ -10,6 +10,7 @@ module BMX.Data.Function (
   , runFunctionT
   , liftBMX
   , one
+  , rest
   , param
   -- * Function arity and type errors
   , FunctionError (..)
@@ -71,6 +72,9 @@ runFunctionT' s = (flip runStateT) s . runEitherT . fun
 liftBMX :: (Monad m, Monad (t m), MonadTrans t) => t m a -> FunctionT (t m) a
 liftBMX = FunctionT . lift . lift
 
+-- | Match a single item using a Value predicate. If the predicate
+-- fails with 'Nothing', the rule name is used to construct an appropriate
+-- error message.
 one :: Monad m => Text -> (Value -> Maybe a) -> FunctionT m a
 one rule p = FunctionT $ do
   (FS st ps) <- get
@@ -81,6 +85,11 @@ one rule p = FunctionT $ do
       (\a -> (put (FS xs ps)) >> return a)
       (p x)
 
+-- | Match all remaining items. This is functionally equivalent to
+-- 'many f', but throws a much nicer type error, because it doesn't
+-- give up on failure.
+rest :: (Applicative m, Monad m) => FunctionT m a -> FunctionT m [a]
+rest f = many f <* (eof <|> void f)
 
 eof :: Monad m => FunctionT m ()
 eof = FunctionT $ do

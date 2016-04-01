@@ -18,12 +18,15 @@ import           P
 
 -- Couple of units to check that failing items don't consume input, alternative works, etc
 
--- flattenFunction - runs
-
+-- flattenFunction - runs function without any other BMX artifice
 flattenFunction :: [Value] -> [Param] -> FunctionT (BMX Identity) a -> Either Text a
 flattenFunction v p f = first renderEvalError ee
   >>= either (Left . renderFunctionError) (return . id)
   where ee = runBMX mempty (runFunctionT v p f)
+
+-- ignore the error
+flattenFunction' :: [Value] -> [Param] -> FunctionT (BMX Identity) a -> Either () a
+flattenFunction' v p = first (const ()) . flattenFunction v p
 
 anything :: FunctionT (BMX Identity) [Value]
 anything = many value
@@ -92,6 +95,33 @@ prop_fun_backtrack_1 v ps = (flattenFunction [v] ps fun === pure v) .||. garbage
         garbage (StringV _) = False
         garbage (NumberV _) = False
         garbage _ = True
+
+--------------------------------------------------------------------------------
+
+-- all' combinator is functionally equivalent to many
+
+prop_fun_all_many_value vs ps = flattenFunction' vs ps fun1 === flattenFunction' vs ps fun2
+  where
+    fun1 = many value
+    fun2 = rest value
+
+prop_fun_all_value_always_succeeds vs ps = isRight $ flattenFunction vs ps fun
+  where
+    fun = rest value
+
+prop_fun_all_many_string vs ps = flattenFunction' vs ps fun1 === flattenFunction' vs ps fun2
+  where
+    fun1 = many string
+    fun2 = rest string
+
+-- pretty weak prop: all produces a different error message to many
+prop_fun_all_different_error vs ps = not (null vs) ==>
+  (ff1 /= ff2) .||. (isRight ff1 && isRight ff2)
+  where
+    fun1 = many string
+    fun2 = rest string
+    ff1 = flattenFunction vs ps fun1
+    ff2 = flattenFunction vs ps fun2
 
 --------------------------------------------------------------------------------
 
