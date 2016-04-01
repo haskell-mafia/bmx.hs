@@ -16,7 +16,7 @@ import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
 
-import           BMX.Data
+import           BMX.Data hiding (rest)
 import           BMX.Lexer (validIdChar)
 
 import           Test.BMX.Orphans ()

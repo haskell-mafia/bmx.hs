@@ -30,6 +30,8 @@ module BMX.Function (
   , nullable
   , optional
   , eitherA
+  , one
+  , rest
   , string
   , number
   , boolean
