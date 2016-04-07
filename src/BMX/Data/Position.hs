@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Data.Position (
@@ -17,8 +18,11 @@ module BMX.Data.Position (
   ) where
 
 import           Data.Data (Data, Typeable)
+import           Data.Serialize
 import           Data.Text (Text)
 import qualified Data.Text as T
+
+import           GHC.Generics
 
 import           P
 
@@ -26,7 +30,9 @@ import           P
 data Position = Position {
     posLine :: !Int
   , posColumn :: !Int
-  } deriving (Data, Eq, Ord, Show, Typeable)
+  } deriving (Data, Eq, Ord, Show, Typeable, Generic)
+
+instance Serialize Position
 
 renderPosition :: Position -> Text
 renderPosition pos = "line " <> tshow (posLine pos) <> ", col " <> tshow (posColumn pos)
@@ -35,7 +41,9 @@ renderPosition pos = "line " <> tshow (posLine pos) <> ", col " <> tshow (posCol
 data SrcInfo
   = SrcLoc !Position !Position
   | NoInfo
-  deriving (Data, Eq, Ord, Show, Typeable)
+  deriving (Data, Eq, Ord, Show, Typeable, Generic)
+
+instance Serialize SrcInfo
 
 instance Monoid SrcInfo where
   mempty = NoInfo
@@ -54,7 +62,9 @@ renderSrcInfoRange (SrcLoc a b) = renderPosition a <> " -- " <> renderPosition b
 
 -- | A value and character range pair
 data Positioned a = !a :@ !SrcInfo
-  deriving (Data, Eq, Ord, Show, Typeable)
+  deriving (Data, Eq, Ord, Show, Typeable, Generic)
+
+instance Serialize a => Serialize (Positioned a)
 
 instance Monoid a => Monoid (Positioned a) where
   mempty = mempty :@ mempty
