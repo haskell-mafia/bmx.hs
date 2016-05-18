@@ -28,28 +28,6 @@ deriving instance Eq BMXError
 instance Show BMXError where
   show = T.unpack . renderBMXError
 
-deriving instance Generic Template
-
-deriving instance Generic Stmt
-
-deriving instance Generic Expr
-
-deriving instance Generic Literal
-
-deriving instance Generic BlockParams
-
-deriving instance Generic Path
-
-deriving instance Generic DataPath
-
-deriving instance Generic Hash
-
-deriving instance Generic HashPair
-
-deriving instance Generic Fmt
-
-deriving instance Generic Format
-
 deriving instance Generic Tokens
 
 deriving instance Generic Token
@@ -65,12 +43,6 @@ deriving instance Typeable Value
 deriving instance Generic BMXValue
 deriving instance Data BMXValue
 deriving instance Typeable BMXValue
-
-deriving instance Generic Position
-
-deriving instance Generic SrcInfo
-
-deriving instance Generic a => Generic (Positioned a)
 
 instance IsString Chunk where
   fromString = singleChunk . fromString

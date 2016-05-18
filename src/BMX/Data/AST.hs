@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoImplicitPrelude #-}
@@ -22,8 +23,12 @@ module BMX.Data.AST (
   ) where
 
 import           Data.Data (Data, Typeable)
+import           Data.Serialize
+import           Data.Serialize.Text ()
 import           Data.Text (Text)
 import qualified Data.Text as T
+
+import           GHC.Generics
 
 import           BMX.Data.Position
 import           BMX.Data.Format
@@ -34,7 +39,9 @@ import           P
 --
 -- Build a Template with 'templateFromText'.
 newtype Template = Template [Positioned Stmt]
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Template
 
 instance Monoid Template where
   mempty = Template mempty
@@ -110,7 +117,9 @@ data Stmt
       !Fmt
       !(Positioned Expr)
       !(Positioned Template)
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Stmt
 
 data Expr
   = Lit
@@ -120,7 +129,9 @@ data Expr
       !(Positioned Literal)
       ![Positioned Expr]
       !(Positioned Hash)
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Expr
 
 data Literal
   = PathL !Path
@@ -129,10 +140,14 @@ data Literal
   | NumberL !Integer
   | BooleanL !Bool
   | NullL
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Literal
 
 data BlockParams = BlockParams ![Positioned Literal]
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize BlockParams
 
 instance Monoid BlockParams where
   mempty = BlockParams []
@@ -141,23 +156,33 @@ instance Monoid BlockParams where
 data Path
   = PathID !Text !(Maybe (Char, Path))
   | PathSeg !Text !(Maybe (Char, Path))
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Path
 
 data DataPath = DataPath !Path
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize DataPath
 
 data Hash = Hash ![Positioned HashPair]
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Hash
 
 instance Monoid Hash where
   mempty = Hash []
   mappend (Hash a) (Hash b) = Hash (a <> b)
 
 data HashPair = HashPair !(Positioned Text) !(Positioned Expr)
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize HashPair
 
 data Fmt = Fmt !Format !Format
-  deriving (Show, Eq, Data, Typeable)
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Fmt
 
 templateToText :: Template -> Text
 templateToText = renderTemplate
