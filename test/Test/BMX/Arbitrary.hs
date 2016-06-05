@@ -159,6 +159,7 @@ instance Arbitrary Stmt where
     ContentStmt t -> ContentStmt <$> filter (tis validContent) (shrink t)
     CommentStmt f t -> CommentStmt f <$> filter (tis validComment) (shrink t)
     RawBlock e _ -> RawBlock <$> shrink e <*> [T.empty :@ mempty]
+    Tag t as b -> Tag <$> pure t <*> shrink as <*> shrink b
     other -> genericShrink other
 
 instance Arbitrary Expr where
@@ -313,6 +314,7 @@ validContent t = and [
   , T.last t /= '{'
   , T.last t /= '\\'
   , T.head t /= '}'
+  , (not . T.isInfixOf "<") t
   ]
 
 -- | Anything without NUL is a valid comment

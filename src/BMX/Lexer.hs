@@ -71,14 +71,15 @@ htmlP =
     openTag :: Parser [Positioned Token]
     openTag = do
       _ <- try $ string "<"
-      i <- withPos . try $ takeWhile1 validTagNameChar
-      a <- join <$> many (try space *> attribute)
+      i <- withPos $ takeWhile1 validTagNameChar
+      -- TODO TODO TODO SPACES?!?!??!?!
+      a <- join <$> many (space *> attribute)
       _ <- many space
       b <- withPos $ closeSingleTag <|> (const TagOpenEnd <$> string ">")
       pure $ [TagOpen <$> i] <> a <> [b]
     attribute :: Parser [Positioned Token]
     attribute =
-      attributeHtml <|> mu
+      attributeHtml
     attributeHtml :: Parser [Positioned Token]
     attributeHtml =
       let
@@ -93,7 +94,7 @@ htmlP =
     closeTag :: Parser (Positioned Token)
     closeTag = do
       _ <- try $ string "</"
-      tn <- withPos . try $ takeWhile1 validTagNameChar
+      tn <- withPos $ takeWhile1 validTagNameChar
       _ <- many space
       _ <- string ">"
       pure $ TagClose <$> tn

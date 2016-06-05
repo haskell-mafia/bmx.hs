@@ -40,4 +40,4 @@ prop_page_monoid_left_id x = mempty <> x === (x :: Page)
 prop_page_monoid_right_id x = x <> mempty === (x :: Page)
 
 return []
-tests = $forAllProperties $ quickCheckWithResult stdArgs { maxSuccess = 10000 }
+tests = $forAllProperties $ quickCheckWithResult stdArgs { maxSuccess = 100 }

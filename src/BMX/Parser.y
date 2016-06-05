@@ -165,7 +165,14 @@ html :: { Positioned Stmt }:
     tag_open attributes tag_close_self
       { Tag $1 $2 (prg []) :@ between $1 $3 }
   | tag_open attributes tag_open_end statements tag_close
-      { Tag $1 $2 (prg $4) :@ between $1 $5 }
+      {%
+          let t1 :@ l1 = $1
+              t5 :@ l5 = $5
+              loc = l1 <> l5
+          in  if t1 == t5
+              then return (Tag $1 (reverse $2) (prg $4) :@ between $1 $5)
+              else Left . ParseError loc $ "Tag " <> t1 <> " does match closing tag " <> t5
+      }
 
 attributes :: { [Positioned Attribute] }:
     attributes attribute             { $2 : $1 }

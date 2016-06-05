@@ -291,6 +291,10 @@ renderStmt = \case
     openFormat l1 <> "#*" <> renderBareExpr e <> closeFormat r1
       <> renderTemplate body
       <> closeBlock l2 r2 e
+  Tag (n :@ _) attrs (body :@ _) ->
+    "<" <> n <> foldMap ((<>) " " . renderAttribute . depo) attrs <> ">"
+      <> renderTemplate body
+      <> "</" <> n <> ">"
   where
     openFormat f = "{{" <> renderFormat f
     closeFormat f = renderFormat f <> "}}"
@@ -299,6 +303,8 @@ renderStmt = \case
     blockParams = renderBlockParams
     inverseMay = renderTemplate
     closeBlock l r e = openFormat l <> "/" <> exprHelper e <> closeFormat r
+    renderAttribute (Attribute n v) =
+      n <> "=" <> "\"" <> v <> "\""
 
 renderTemplate :: Template -> Text
 renderTemplate (Template ss) = foldMap (renderStmt . depo) ss

@@ -113,6 +113,11 @@ evalStmt (stmt :@ _loc) = case stmt of
   DecoratorBlock (Fmt l _) (Fmt _ r) _ _ ->
     return (page l r T.empty)
 
+  Tag (n :@ _) attr (b :@ _) -> do
+    b' <- eval b
+    let as = foldMap (\(Attribute k v) -> content $ " " <> k <> "=" <> "\"" <> v <> "\"") . fmap depo $ attr
+    return $ content ("<" <> n) <> as <> content ">" <> b' <> content ("</" <> n <> ">")
+
 evalExpr :: Monad m => Positioned Expr -> BMX m Value
 evalExpr (expr :@ _) = case expr of
   (SExp h p hash) -> evalExpr' Coerce h p hash
