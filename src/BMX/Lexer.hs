@@ -62,12 +62,49 @@ validIdChar = predi
 --
 
 token :: Parser [Positioned Token]
-token = mu <|> contentP
+token = htmlP <|> mu <|> contentP
+
+htmlP :: Parser [Positioned Token]
+htmlP =
+  (pure <$> closeTag) <|> openTag
+  where
+    openTag :: Parser [Positioned Token]
+    openTag = do
+      _ <- try $ string "<"
+      i <- withPos . try $ takeWhile1 validTagNameChar
+      a <- join <$> many (space *> attribute)
+      b <- withPos $ closeSingleTag <|> (const TagOpenEnd <$> string ">")
+      pure $ [TagOpen <$> i] <> a <> [b]
+    attribute :: Parser [Positioned Token]
+    attribute =
+      attributeHtml <|> mu
+    attributeHtml :: Parser [Positioned Token]
+    attributeHtml =
+      let
+        -- TODO VALID ATT
+        attributeName = withPos $ AttributeName <$> takeWhile1 validTagNameChar
+        attributeValue = stringP
+      in
+        ((\a b -> a : maybeToList b) <$> attributeName <*> optionMaybe (many space *> char '=' *> many space *> attributeValue))
+    closeSingleTag :: Parser Token
+    closeSingleTag =
+      fmap (const TagCloseSelf) . try $ string "/>"
+    closeTag :: Parser (Positioned Token)
+    closeTag = do
+      _ <- try $ string "</"
+      tn <- withPos . try $ takeWhile1 validTagNameChar
+      _ <- many space
+      _ <- string ">"
+      pure $ TagClose <$> tn
+    -- https://www.w3.org/TR/html-markup/syntax.html#tag-name
+    validTagNameChar :: Char -> Bool
+    validTagNameChar =
+      flip elem (['0'..'9'] <> ['a'..'z'] <> ['A'..'Z'])
 
 -- | Raw Web Content
 contentP :: Parser [Positioned Token]
 contentP = do
-  body@(b :@ _) <- withPos $ try (manyTillUnescaped notNull open) <|> plain
+  body@(b :@ _) <- withPos $ try (manyTillUnescaped notNull (open <|> (try $ string "<"))) <|> plain
   guard (not (T.null b))
   pure [fmap Content body]
   where
@@ -365,7 +402,6 @@ open = try $ string "{{"
 
 close :: Parser Text
 close = try $ string "}}"
-
 
 -- -----------------------------------------------------------------------------
 -- Util

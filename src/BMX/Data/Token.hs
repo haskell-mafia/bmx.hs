@@ -48,6 +48,12 @@ data Token
   | CloseUnescaped Format
   | CloseRawBlock
   | CloseRaw Text
+  -- Html
+  | TagOpen Text
+  | TagOpenEnd
+  | TagCloseSelf
+  | TagClose Text
+  | AttributeName Text
   -- Expressions
   | ID Text
   | SegmentID Text
