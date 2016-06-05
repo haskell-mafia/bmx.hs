@@ -72,7 +72,8 @@ htmlP =
     openTag = do
       _ <- try $ string "<"
       i <- withPos . try $ takeWhile1 validTagNameChar
-      a <- join <$> many (space *> attribute)
+      a <- join <$> many (try space *> attribute)
+      _ <- many space
       b <- withPos $ closeSingleTag <|> (const TagOpenEnd <$> string ">")
       pure $ [TagOpen <$> i] <> a <> [b]
     attribute :: Parser [Positioned Token]
@@ -83,7 +84,7 @@ htmlP =
       let
         -- TODO VALID ATT
         attributeName = withPos $ AttributeName <$> takeWhile1 validTagNameChar
-        attributeValue = stringP
+        attributeValue = attributeValueP
       in
         ((\a b -> a : maybeToList b) <$> attributeName <*> optionMaybe (many space *> char '=' *> many space *> attributeValue))
     closeSingleTag :: Parser Token
@@ -360,6 +361,21 @@ stringP = withPos (doubleP <|> singleP)
       str <- manyTillUnescaped notNull (string "'")
       _   <- char '\''
       pure (String (T.replace "\\'" "'" str))
+
+-- FIX https://www.w3.org/TR/html5/syntax.html#syntax-attributes
+attributeValueP :: Parser (Positioned Token)
+attributeValueP = withPos (doubleP <|> singleP)
+  where
+    doubleP = do
+      _   <- try $ char '"'
+      str <- manyTillUnescaped notNull (string "\"")
+      _   <- char '"'
+      pure (AttributeValue (T.replace "\\\"" "\"" str))
+    singleP = do
+      _   <- try $ char '\''
+      str <- manyTillUnescaped notNull (string "'")
+      _   <- char '\''
+      pure (AttributeValue (T.replace "\\'" "'" str))
 
 boolP :: Parser (Positioned Token)
 boolP = withPos (true <|> false)

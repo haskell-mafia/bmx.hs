@@ -67,6 +67,13 @@ import           P
   p_open_raw_block       { $$ @ (OpenRawBlock :@ _) }
   p_close_raw_block      { $$ @ (CloseRawBlock :@ _) }
   p_close_raw            { $$ @ (CloseRaw _ :@ _) }
+  -- * Html
+  p_tag_open             { $$ @ (TagOpen _ :@ _) }
+  p_tag_open_end         { $$ @ (TagOpenEnd :@ _) }
+  p_tag_close_self       { $$ @ (TagCloseSelf :@ _) }
+  p_tag_close            { $$ @ (TagClose _ :@ _) }
+  p_attribute_name       { $$ @ (AttributeName _ :@ _) }
+  p_attribute_value      { $$ @ (AttributeValue _ :@ _) }
 
 %%
 
@@ -116,6 +123,12 @@ raw_content:          p_raw_content          { fmap (\(RawContent a)         -> 
 open_raw_block:       p_open_raw_block       { fmap (\OpenRawBlock           -> ()) $1 }
 close_raw_block:      p_close_raw_block      { fmap (\CloseRawBlock          -> ()) $1 }
 close_raw:            p_close_raw            { fmap (\(CloseRaw a)           -> a)  $1 }
+tag_open:             p_tag_open             { fmap (\(TagOpen a)            -> a)  $1 }
+tag_open_end:         p_tag_open_end         { fmap (\TagOpenEnd             -> ()) $1 }
+tag_close_self:       p_tag_close_self       { fmap (\TagCloseSelf           -> ()) $1 }
+tag_close:            p_tag_close            { fmap (\(TagClose a)           -> a)  $1 }
+attribute_name:       p_attribute_name       { fmap (\(AttributeName a)      -> a)  $1 }
+attribute_value:      p_attribute_value      { fmap (\(AttributeValue a)     -> a)  $1 }
 
 -- -----------------------------------------------------------------------------
 -- Statements
@@ -133,6 +146,7 @@ statement :: { Positioned Stmt }:
   | inverse_block                  { $1 }
   | partial                        { $1 }
   | decorator                      { $1 }
+  | html                           { $1 }
 
 do_comment :: { Positioned Stmt }:
   -- You'd think we could discard comments here, but they have formatting implications
@@ -146,6 +160,20 @@ mustache :: { Positioned Stmt }:
       { Mustache (fmt $1 $3) $2 :@ between $1 $3 }
   | open_unescaped bare_expr close_unescaped
       { MustacheUnescaped (fmt $1 $3) $2 :@ between $1 $3 }
+
+html :: { Positioned Stmt }:
+    tag_open attributes tag_close_self
+      { Tag $1 $2 (prg []) :@ between $1 $3 }
+  | tag_open attributes tag_open_end statements tag_close
+      { Tag $1 $2 (prg $4) :@ between $1 $5 }
+
+attributes :: { [Positioned Attribute] }:
+    attributes attribute             { $2 : $1 }
+  | {- empty -}                      { [] }
+
+attribute :: { Positioned Attribute }:
+    attribute_name attribute_value
+      { Attribute (depo $1) (depo $2) :@ between $1 $2 }
 
 -- -----------------------------------------------------------------------------
 -- Blocks

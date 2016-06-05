@@ -16,6 +16,7 @@ module BMX.Data.AST (
   , Hash (..)
   , HashPair (..)
   , Fmt (..)
+  , Attribute (..)
   , templateToText
   , renderLiteral
   , renderPath
@@ -117,6 +118,11 @@ data Stmt
       !Fmt
       !(Positioned Expr)
       !(Positioned Template)
+
+  | Tag
+      !(Positioned Text)
+      ![Positioned Attribute]
+      !(Positioned Template)
   deriving (Show, Eq, Data, Typeable, Generic)
 
 instance Serialize Stmt
@@ -183,6 +189,13 @@ data Fmt = Fmt !Format !Format
   deriving (Show, Eq, Data, Typeable, Generic)
 
 instance Serialize Fmt
+
+data Attribute
+  = Attribute
+      !Text !Text
+  deriving (Show, Eq, Data, Typeable, Generic)
+
+instance Serialize Attribute
 
 templateToText :: Template -> Text
 templateToText = renderTemplate

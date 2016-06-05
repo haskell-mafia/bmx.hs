@@ -136,6 +136,7 @@ instance Arbitrary Stmt where
     , CommentStmt <$> arbitrary <*> arbitrary `suchThat` tis validComment
     , DecoratorStmt <$> arbitrary <*> bareExpr
     , DecoratorBlock <$> arbitrary <*> arbitrary <*> bareExpr <*> body
+    , Tag <$> ((:@) <$> tagName <*> arbitrary) <*> arbitrary <*> body
     ]
     where
       body = do
@@ -151,6 +152,9 @@ instance Arbitrary Stmt where
         t <- Inverse <$> arbitrary <*> body
         return (Template [t :@ mempty] :@ mempty)
       expmay = elements [Just, const Nothing] <*> bareExpr
+      -- https://www.w3.org/TR/html5/syntax.html#syntax-tag-name
+      tagName =
+        T.pack <$> listOf1 (oneof [choose ('a', 'z'), choose ('A', 'Z'), choose ('0', '9')])
   shrink = \case
     ContentStmt t -> ContentStmt <$> filter (tis validContent) (shrink t)
     CommentStmt f t -> CommentStmt f <$> filter (tis validComment) (shrink t)
@@ -183,6 +187,15 @@ instance Arbitrary BlockParams where
       -- A 'simple' name, i.e. an ID without path components
       name = fmap PathL . PathID <$> arbitrary `suchThat` validId <*> pure Nothing
   shrink (BlockParams ps) = BlockParams <$> filter (not . null) (shrinkList shrink ps)
+
+instance Arbitrary Attribute where
+  arbitrary =
+    Attribute
+      -- https://www.w3.org/TR/html5/syntax.html#syntax-attributes
+      -- FIX Not even close
+      <$> (T.pack <$> listOf1 (oneof [choose ('a', 'z'), choose ('A', 'Z'), choose ('0', '9')]))
+      <*> pure "test"
+  shrink = genericShrink
 
 instance Arbitrary DataPath where
   arbitrary = DataPath <$> arbitrary

@@ -53,7 +53,9 @@ data Token
   | TagOpenEnd
   | TagCloseSelf
   | TagClose Text
+  -- FIX Bool for equals?
   | AttributeName Text
+  | AttributeValue Text
   -- Expressions
   | ID Text
   | SegmentID Text
@@ -112,3 +114,10 @@ renderToken = \case
   Null                 -> " null "
   OpenBlockParams      -> " as |"
   CloseBlockParams     -> "| "
+  --
+  TagOpen n            -> "<" <> n
+  TagOpenEnd           -> ">"
+  TagCloseSelf         -> "/>"
+  TagClose n           -> "</" <> n <> ">"
+  AttributeName n      -> " " <> n <> "="
+  AttributeValue v     -> "\"" <> v <> "\""
