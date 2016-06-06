@@ -72,9 +72,8 @@ htmlP =
     openTag = do
       _ <- try $ string "<"
       i <- withPos $ takeWhile1 validTagNameChar
-      -- TODO TODO TODO SPACES?!?!??!?!
-      a <- join <$> many (space *> attribute)
       _ <- many space
+      a <- join <$> many (attribute <* many space)
       b <- withPos $ closeSingleTag <|> (const TagOpenEnd <$> string ">")
       pure $ [TagOpen <$> i] <> a <> [b]
     attribute :: Parser [Positioned Token]
