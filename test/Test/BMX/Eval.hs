@@ -285,6 +285,24 @@ prop_eval_unit_with_nullable = once $
   rendersTo "{{# with nullable }}abcdefg{{/with}}" testContext
     === pure T.empty
 
+prop_helper_with = once . conjoin $
+    fmap (\(tpl,res) -> rendersTo tpl testContext === pure res) tests
+  where
+    tests =
+      [ ("{{# with title as |x|}}{{ ../component }}:{{ x }}{{/with}}", "authorid:My First Blog Post!")
+      , ("{{# with title }}{{ ../component }}{{/with}}", "authorid")
+      , ("{{# with author as |x|}}{{ x.name }}{{/with}}", "Yehuda Katz")
+      , ("{{# with author.id as |x|}}{{ x }}{{/with}}", "47")
+      , ("{{# with list as |x|}}{{#each x as |v|}}{{ v }}{{/each}}{{/with}}", "whynot?")
+      , ("{{# with nullable as |x|}}not reached{{else}}no scope change: {{component}}{{/with}}",
+         "no scope change: authorid")
+      ]
+
+prop_helper_with_undef = once $
+  (=== True) . isLeft $
+    rendersTo "{{# with undeffo as |x|}}not reached{{else}}also not reached{{/with}}" testContext
+
+
 -- -----------------------------------------------------------------------------
 
 testContext :: BMXState Identity

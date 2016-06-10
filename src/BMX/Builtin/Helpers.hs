@@ -41,15 +41,23 @@ unless = blockHelper $ \thenp elsep -> do
   v <- value
   liftBMX $ if truthy v then eval elsep else eval thenp
 
--- | The "with" block helper. Accept a Context as argument.
+-- | The "with" block helper.
+-- | Accepts a non-null value as argument; optionally provides that value via
+-- | an "... as |x|" parameter. (If that value is a Context, it will use that
+-- | as the block's scope, otherwise it will use an empty scope instead.)
+-- | Alternatively, it accepts a null value, and runs the else block.
+-- | Lastly: it doesn't accept undefined values.
 with :: (Applicative m, Monad m) => Helper m
 with = blockHelper $ \thenp elsep -> do
-  ctx <- nullable context
+  val <- value
   name <- optional param
-  liftBMX $ maybe
-    (eval elsep)
-    (\c -> withContext c . withName name (ContextV c) $ eval thenp)
-    ctx
+  liftBMX $ case val of
+    UndefinedV -> bmxError "Value passed to 'with' is undefined"
+    NullV      -> eval elsep
+    v -> let ctx = case v of
+                     ContextV c -> withContext c
+                     _          -> withContext (Context mempty)
+         in ctx . withName name v $ eval thenp
 
 -- | The "lookup" helper. Takes a context and a string, and looks up a
 -- value in a context. Returns @undefined@ when it doesn't exist.
