@@ -13,56 +13,60 @@ import           BMX.Data
 
 import           P
 
+
+type Scope = [[Text]]
+
+
 renderReactFile :: Text -> Template -> Text
 renderReactFile n t =
      "\"use strict\";\n"
   <> "\n"
   <> "exports." <> n <> " = function(context, args, data) {"
-       <> "  return " <> renderReact t <> ";"
+       <> "  return " <> renderReact [["args"]] t <> ";"
        <> "};\n"
 
-renderReact :: Template -> Text
-renderReact (Template ss) =
-  foldMap renderReactStmt ss
+renderReact :: Scope -> Template -> Text
+renderReact scope (Template ss) =
+  foldMap (renderReactStmt scope) ss
 
-renderReactTemplate :: Template -> Text
-renderReactTemplate (Template ss) =
-  "[" <> (T.intercalate ", " . fmap renderReactStmt) ss <> "]"
+renderReactTemplate :: Scope -> Template -> Text
+renderReactTemplate scope (Template ss) =
+  "[" <> (T.intercalate ", " . fmap (renderReactStmt scope)) ss <> "]"
 
-renderReactStmt :: Positioned Stmt -> Text
-renderReactStmt (stmt :@ _) = case stmt of
+renderReactStmt :: Scope -> Positioned Stmt -> Text
+renderReactStmt scope (stmt :@ _) = case stmt of
   ContentStmt (t :@ _) ->
     "'" <> t <> "'"
   CommentStmt _ (comment :@ _) ->
     "/*" <> comment <> "*/"
   Mustache _ ((SExp (l :@ _) _ _) :@ _) ->
-    renderReactLiteral l
+    renderReactLiteral scope l
   MustacheUnescaped (Fmt l r) (e :@ _) ->
     -- FIX Be nice not to have to create a span tag
-    "React.createElement('span', {dangerouslySetInnerHTML: {__html: " <> renderReactExpr e <> "}})";
+    "React.createElement('span', {dangerouslySetInnerHTML: {__html: " <> renderReactExpr scope e <> "}})";
   Block _ _ e bp b i ->
-    renderBlock e bp b i
+    renderBlock scope e bp b i
   Inverse _ (p :@ _) ->
     -- FIX What happens to inverse?
-    renderReactTemplate p
+    renderReactTemplate scope p
   InverseBlock _ _ e bp b i ->
-    renderBlock e bp i b
+    renderBlock scope e bp i b
 
   -- Treat this as a block too, although it lacks the lower formatting
   InverseChain _ e bp b i ->
-    renderBlock e bp b i
+    renderBlock scope e bp b i
 
   -- Special handler that resolves and inlines the partial
   PartialStmt (Fmt l r) e@(_ :@ el) ee h ->
-    renderPartial e ee h (Template [] :@ el)
+    renderPartial scope e ee h (Template [] :@ el)
 
   -- Special handler that registers @partial-block, and fails over if partial not found
   PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee h b ->
-    renderPartial e ee h b
+    renderPartial scope e ee h b
 
   -- Special handler that treats it as a regular block with a single ContentStmt
   RawBlock (e :@ _) (b :@ _) ->
-    "context.helpers['" <> renderReactExpr e <> "']("
+    "context.helpers" <> renderJsArg (renderReactExpr scope e) <> "("
       -- FIX Is this right, what happens if this is raw html?
       <> "function() { return " <> b <> " },"
       <> "function() { return [] }"
@@ -79,56 +83,63 @@ renderReactStmt (stmt :@ _) = case stmt of
     let
       as = T.intercalate ", " . fmap (\(Attribute k v) -> k <> ": " <> "'" <> v <> "'") . fmap depo $ attr
     in
-      "React.createElement('" <> n <> "', { " <> as <> "}, " <> renderReactTemplate b <> ");"
+      "React.createElement('" <> n <> "', { " <> as <> "}, " <> renderReactTemplate scope b <> ");"
 
 -- FIX This can't be anything but SExp
-renderBlock :: Positioned Expr -> Maybe (Positioned BlockParams) -> Positioned Template -> Positioned Template -> Text
-renderBlock ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
+renderBlock ::
+  Scope ->
+  Positioned Expr ->
+  Maybe (Positioned BlockParams) ->
+  Positioned Template ->
+  Positioned Template ->
+  Text
+renderBlock scope ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
   let
-    args =
-      maybe "args" (\(BlockParams bp' :@ _) -> T.intercalate ", " . fmap (\(l :@ _) -> renderReactLiteral l) $ bp') bp
+    args' = maybe ["args"] (\(BlockParams bp' :@ _) -> fmap (\(l :@ _) -> renderReactLiteral [] l) $ bp') bp
+    args = T.intercalate ", " args'
   in
     -- TODO: Worth making these helpers return a function that takes _more_ arguments?
     -- This would mean not passing in everything to renderSExp
-    renderSExp l es . Just $
-         "function(" <> args <> ", data) { return " <> renderReactTemplate b <> " }, "
-      <> "function(args, data) { return " <> renderReactTemplate i <> " }"
+    renderSExp [] l es . Just $
+         -- NOTE: Pass data first because we can have 0..n _named_ arguments
+         "function(data, " <> args <> ") { return " <> renderReactTemplate (args' : scope) b <> " }, "
+      <> "function(data, args) { return " <> renderReactTemplate scope i <> " }"
 
-renderPartial :: Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash -> Positioned Template -> Text
-renderPartial (e :@ _) ee (Hash hash :@ _) (b :@ _) =
-  "context.partials['" <> renderReactExpr e <> "']("
+renderPartial :: Scope -> Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash -> Positioned Template -> Text
+renderPartial scope (e :@ _) ee (Hash hash :@ _) (b :@ _) =
+  "context.partials" <> renderJsArg (renderReactExpr [] e) <> "("
     <> "context, "
     -- FIX We'll need to make sure _.extend is available in some fashion.
     -- What's the best way to do that? Define our own version somewhere?
     <> "_.extend({}, "
-      <> maybe "{}" (\(ee' :@ _) -> renderReactExpr ee') ee <> ", "
-      <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr v)) hash <> "}"
+      <> maybe "{}" (\(ee' :@ _) -> renderReactExpr scope ee') ee <> ", "
+      <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr [] v)) hash <> "}"
     <> "), "
-    <> "{ 'partial-body': " <> renderReactTemplate b <> " }"
+    <> "{ 'partial-body': " <> renderReactTemplate scope b <> " }"
     <> ")"
 
-renderReactExpr :: Expr -> Text
-renderReactExpr e = case e of
+renderReactExpr :: Scope -> Expr -> Text
+renderReactExpr scope e = case e of
   Lit (l :@ _) ->
-    renderReactLiteral l
+    renderReactLiteral scope l
   SExp l es h ->
-    renderSExp l es Nothing
+    renderSExp scope l es Nothing
 
-renderSExp :: Positioned Literal -> [Positioned Expr] -> Maybe Text -> Text
-renderSExp (l :@ _) es b =
-  "context.helpers" <> renderJsArg (renderReactLiteral l) <> "("
-    <> "[" <> (T.intercalate ", " . fmap (\(e :@ _) -> renderReactExpr e)) es <> "]"
+renderSExp :: Scope -> Positioned Literal -> [Positioned Expr] -> Maybe Text -> Text
+renderSExp scope (l :@ _) es b =
+  "context.helpers" <> renderJsArg (renderReactLiteral [] l) <> "("
+    <> "[" <> (T.intercalate ", " . fmap (\(e :@ _) -> renderReactExpr [] e)) es <> "]"
     <> maybe "" (", " <>) b
     <> ")"
 
-renderReactLiteral :: Literal -> Text
-renderReactLiteral l = case l of
+renderReactLiteral :: Scope -> Literal -> Text
+renderReactLiteral scope l = case l of
   PathL p ->
     -- TODO Is used by helpers, which is wrong!
-    renderReactPath p
+    renderReactPath scope p
   DataL (DataPath dp) ->
     -- Data is _only_ passed in from block callbacks
-    "data" <> renderJsArg (renderReactPath dp)
+    "data" <> renderJsArg (renderReactPath scope dp)
   StringL t ->
     "'" <> t <> "'"
   NumberL i ->
@@ -151,10 +162,23 @@ renderJsArg a =
     False ->
       "['" <> a <> "']"
 
-renderReactPath :: Path -> Text
-renderReactPath p = case p of
+renderReactPath :: Scope -> Path -> Text
+renderReactPath scope p = case p of
   -- TODO "../"
   PathID t m ->
-    t <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath p') m
+    let
+      t' = T.intercalate "." $ case scope of
+        [] ->
+          [t]
+        h : _ ->
+          case elem t h of
+            True ->
+              [t]
+            False ->
+              -- TODO Yeah this is wrong, what happens if you're eaching on an object and you only declare key?!?!
+              -- Kill me if we ever admit that 'this' is a thing
+              (maybe [] pure . head . reverse) h <> [t]
+    in
+      t' <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
   PathSeg t m ->
-    t <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath p') m
+    t <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
