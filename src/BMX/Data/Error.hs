@@ -32,6 +32,7 @@ data BMXError
   = BMXLexError !LexError
   | BMXParseError !ParseError
   | BMXEvalError !EvalError
+  deriving (Eq, Show)
 
 -- | Produce a human-readable error (as 'Text') from a 'BMXError'.
 renderBMXError :: BMXError -> Text
@@ -52,7 +53,7 @@ newtype LexError = LexError { renderLexError :: Text }
 -- Parser errors
 
 data ParseError = ParseError !SrcInfo !Text
-  deriving (Eq)
+  deriving (Eq, Show)
 
 renderParseError :: ParseError -> Text
 renderParseError (ParseError loc text) = T.unlines [ header, indent 1 text ]
@@ -77,6 +78,7 @@ data FunctionError
   | Trailing !Int
   | EOF
   | NoParams
+  deriving (Eq, Show)
 
 renderFunctionError :: FunctionError -> Text
 renderFunctionError = \case
@@ -90,9 +92,10 @@ renderFunctionError = \case
 -- Evaluation errors
 
 data EvalError = EvalError EvalErrorT Breadcrumbs
+  deriving (Eq, Show)
 
 newtype Breadcrumbs = Breadcrumbs { crumbs :: [Breadcrumb] }
-  deriving (Monoid)
+  deriving (Eq, Show, Monoid)
 
 -- These are used for backtraces when errors occur
 -- we're either in a Helper, a Partial, a Decorator, or a leaf
@@ -101,6 +104,7 @@ data Breadcrumb
   | InPartial !SrcInfo !Text
   | InDecorator !SrcInfo !Text
   | InLeaf !SrcInfo !Text !Text
+  deriving (Eq, Show)
 
 renderBreadcrumbs :: Breadcrumbs -> Text
 renderBreadcrumbs (Breadcrumbs bcs) = T.unlines (fmap renderBreadcrumb bcs)
@@ -120,6 +124,7 @@ data EvalErrorT
   | Shadowing       !SrcInfo !Text !Text -- ^ Attempt to redefine something
   | DefUndef        !SrcInfo !Text -- ^ Attempt to define a variable as 'undefined' (using withVariable)
   | UserError       !SrcInfo !Text -- ^ Custom error thrown from a helper.
+  deriving (Eq, Show)
 
 renderEvalError :: EvalError -> Text
 renderEvalError (EvalError err bcs) = case err of
