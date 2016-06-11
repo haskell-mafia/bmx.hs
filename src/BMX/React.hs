@@ -42,26 +42,28 @@ renderReactStmt (stmt :@ _) = case stmt of
   InverseChain _ e bp b i ->
     renderBlock e b i
 
-{-
   -- Special handler that resolves and inlines the partial
-  PartialStmt (Fmt l r) e ee hash ->
-    evalPartial l Verbatim r Verbatim e ee hash
-      $ \(lit :@ lloc) -> err (NotFound lloc "partial" (renderLiteral lit))
+  PartialStmt (Fmt l r) e@(_ :@ el) ee h ->
+    renderPartial e ee h (Template [] :@ el)
 
   -- Special handler that registers @partial-block, and fails over if partial not found
-  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee hash b ->
-    evalPartialBlock l1 r1 l2 r2 e ee hash b
+  PartialBlock (Fmt l1 r1) (Fmt l2 r2) e ee h b ->
+    renderPartial e ee h b
 
   -- Special handler that treats it as a regular block with a single ContentStmt
-  RawBlock _ _ ->
-    error "Not implemented"
+  RawBlock (e :@ _) (b :@ _) ->
+    "helpers['" <> renderReactExpr e <> "']("
+      -- FIX Is this right, what happens if this is raw html?
+      <> "function() { return " <> b <> " },"
+      <> "function() { return [] }"
+      <> ")"
 
   -- Decorators are handled in a first pass, so here they are mere formatting
-  DecoratorStmt (Fmt l r) _ ->
-    return (page l r T.empty)
+  DecoratorStmt (Fmt l r) a ->
+    error "Decorators not implemented "
+
   DecoratorBlock (Fmt l _) (Fmt _ r) _ _ ->
-    return (page l r T.empty)
-    -}
+    error "Decorators not implemented "
 
   Tag (n :@ _) attr (b :@ _) ->
     let
@@ -72,8 +74,16 @@ renderReactStmt (stmt :@ _) = case stmt of
 renderBlock :: Positioned Expr -> Positioned Template -> Positioned Template -> Text
 renderBlock (e :@ _) (b :@ _) (i :@ _) =
   "helpers['" <> renderReactExpr e <> "']("
-    <> "function() { return " <> renderReactTemplate b <> " },"
-    <> "function() { return " <> renderReactTemplate i <> " }"
+    <> "function(data) { return " <> renderReactTemplate b <> " },"
+    <> "function(data) { return " <> renderReactTemplate i <> " }"
+    <> ")"
+
+renderPartial :: Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash -> Positioned Template -> Text
+renderPartial (e :@ _) ee (Hash hash :@ _) (b :@ _) =
+  "helpers['" <> renderReactExpr e <> "']("
+    <> maybe "null" (\(ee' :@ _) -> renderReactExpr ee') ee <> ", "
+    <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr v)) hash <> "}, "
+    <> renderReactTemplate b
     <> ")"
 
 renderReactExpr :: Expr -> Text
@@ -88,8 +98,9 @@ renderReactLiteral l = case l of
   PathL p ->
     -- TODO Is used by helpers, which is wrong!
     "args." <> renderReactPath p
-  DataL dp ->
-    error "Data path not implemented"
+  DataL (DataPath dp) ->
+    -- Data is _only_ passed in from block callbacks
+    "data." <> renderReactPath dp
   StringL t ->
     t
   NumberL i ->
