@@ -95,7 +95,8 @@ renderBlock ::
   Text
 renderBlock scope ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
   let
-    args' = maybe ["args"] (\(BlockParams bp' :@ _) -> fmap (\(l :@ _) -> renderReactLiteral [] l) $ bp') bp
+    depth = T.pack . show . length $ scope
+    args' = maybe ["args" <> depth] (\(BlockParams bp' :@ _) -> fmap (\(l :@ _) -> renderReactLiteral [] l) $ bp') bp
     args = T.intercalate ", " args'
   in
     -- TODO: Worth making these helpers return a function that takes _more_ arguments?
@@ -103,7 +104,7 @@ renderBlock scope ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
     renderSExp [] l es . Just $
          -- NOTE: Pass data first because we can have 0..n _named_ arguments
          "function(data, " <> args <> ") { return " <> renderReactTemplate (args' : scope) b <> " }, "
-      <> "function(data, args) { return " <> renderReactTemplate scope i <> " }"
+      <> "function(data, args" <> depth <> ") { return " <> renderReactTemplate scope i <> " }"
 
 renderPartial :: Scope -> Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash -> Positioned Template -> Text
 renderPartial scope (e :@ _) ee (Hash hash :@ _) (b :@ _) =
@@ -179,6 +180,10 @@ renderReactPath scope p = case p of
               -- Kill me if we ever admit that 'this' is a thing
               (maybe [] pure . head . reverse) h <> [t]
     in
-      t' <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
+      case (t, m) of
+        ("..", Just ('/', p')) ->
+          renderReactPath (drop 1 scope) p'
+        _ ->
+          t' <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
   PathSeg t m ->
     t <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
