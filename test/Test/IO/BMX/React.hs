@@ -40,6 +40,9 @@ foo t vars =
 prop_react_tag =
   foo [bmx|<div></div>|] []
 
+prop_react_tag_attributes =
+  foo [bmx|<div class="a" type="b"></div>|] []
+
 prop_react_mustache =
   foo [bmx|<div>{{a}}</div>|] [("a", BMXString "b")]
 
@@ -48,6 +51,12 @@ prop_react_each =
 
 prop_react_if =
   foo [bmx|<div>{{#if a}}{{a}}{{else}}c{{/if}}</div>|] [("a", BMXString "b")]
+
+-- FIX Broken due to each in bmx, not react
+{-
+prop_react_parent_scope =
+  foo [bmx|<div>{{#each a}}{{../b}}{{/each}}</div>|] [("a", BMXList [BMXNull]), ("b", BMXString "c")]
+-}
 
 
 return []

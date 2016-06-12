@@ -84,7 +84,8 @@ renderReactStmt scope (stmt :@ _) = case stmt of
 
   Tag (n :@ _) attr (b :@ _) ->
     let
-      as = T.intercalate ", " . fmap (\(Attribute k v) -> k <> ": " <> "'" <> v <> "'") . fmap depo $ attr
+      attributeMapping k = if k == "class" then "className" else k
+      as = T.intercalate ", " . fmap (\(Attribute k v) -> attributeMapping k <> ": " <> "'" <> v <> "'") . fmap depo $ attr
     in
       "React.createElement('" <> n <> "', { " <> as <> "}, " <> renderReactTemplate scope b <> ")"
 
