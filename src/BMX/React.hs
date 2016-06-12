@@ -118,9 +118,9 @@ renderPartial scope (e :@ _) ee (Hash hash :@ _) (b :@ _) =
     -- What's the best way to do that? Define our own version somewhere?
     <> "_.extend({}, "
       <> maybe "{}" (\(ee' :@ _) -> renderReactExpr scope ee') ee <> ", "
-      <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr [] v)) hash <> "}"
+      <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr scope v)) hash <> "}"
     <> "), "
-    <> "{ 'partial-body': " <> renderReactTemplate scope b <> " }"
+    <> "{ 'partial-block': " <> renderReactTemplate scope b <> " }"
     <> ")"
 
 renderReactExpr :: Scope -> Expr -> Text

@@ -6,7 +6,8 @@ var fs = require('fs')
   , ReactDOMServer = require('react-dom/server')
   , _ = require('lodash')
 
-var frame = process.argv[2];
+var dir = process.argv[2];
+var frame = process.argv[3];
 
 var data = '';
 process.stdin.setEncoding('utf8');
@@ -17,11 +18,11 @@ process.stdin
       return next();
     },
     function(done) {
-      let module = require("../" + frame);
-      let context = { helpers: {} };
+      let partials = fs.readdirSync(dir).reduce(function(b, a) { return _.extend(b, require("../" + dir + "/" + a)); }, {})
+      let context = { helpers: {}, partials: partials };
       _.extend(context.helpers, require("../src/BMX/React/helpers.js"));
       let vars = JSON.parse(data);
-      let react = module.test(context, vars, {});
+      let react = partials.test(context, vars, {});
       console.log(ReactDOMServer.renderToStaticMarkup(react));
       return done();
     }

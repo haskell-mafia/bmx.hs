@@ -28,13 +28,20 @@ import P
 
 renderProp :: Template -> [(Text, BMXValue)] -> Property
 renderProp t vars =
+  renderProp' t [] vars
+
+renderProp' :: Template -> [(Text, Template)] -> [(Text, BMXValue)] -> Property
+renderProp' t ts vars =
   testIO . withTempDirectory "dist" "react" $ \dir -> do
     let file = dir <> "/temp.hbs.js"
     T.writeFile file $ renderReactFile "test" t
+    for_ ts $ \(n, t') ->
+      -- QUESTION: Should we hardcode the js function name, or make it possible to merge them together?
+      T.writeFile (dir <> "/" <> T.unpack n <> ".hbs.js") $ renderReactFile n t'
     T.putStrLn $ renderReactFile "test" t
-    let t1 = renderPage <$> renderTemplate (usingContext defaultState vars) t
+    let t1 = renderPage <$> renderTemplate (defaultState `usingContext` vars `usingPartials` fmap (second partialFromTemplate) ts) t
     _ <- readProcess "npm" ["install"] ""
-    t2 <- T.strip . T.pack <$> readProcess "bin/react-render.js" [file] (T.unpack . asText . contextToJSON $ vars)
+    t2 <- T.strip . T.pack <$> readProcess "bin/react-render.js" [dir, "test"] (T.unpack . asText . contextToJSON $ vars)
     pure $ t1 === pure t2
 
 prop_react_tag =
@@ -51,6 +58,24 @@ prop_react_each =
 
 prop_react_if =
   renderProp [bmx|<div>{{#if a}}{{a}}{{else}}c{{/if}}</div>|] [("a", BMXString "b")]
+
+prop_react_partial_hash_only =
+  renderProp'
+    [bmx|<div>{{>a-b d=f }}</div>|]
+    [("a-b", [bmx|<div>{{d}}</div>|])]
+    [("f", BMXString "y")]
+
+prop_react_partial =
+  renderProp'
+    [bmx|<div>{{>a-b c d=f }}</div>|]
+    [("a-b", [bmx|<div>{{d}}</div>|])]
+    [("c", BMXContext [("d", BMXString "z")]), ("f", BMXString "y")]
+
+prop_react_partial_block =
+  renderProp'
+    [bmx|<div>{{#>a-b}}y{{/a-b}}</div>|]
+    [("a-b", [bmx|<div>{{> @partial-block }}</div>|])]
+    []
 
 -- FIX Broken due to each in bmx, not react
 {-
