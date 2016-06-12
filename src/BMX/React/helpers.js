@@ -1,6 +1,6 @@
 "use strict";
 
-exports.each = function (args, iff, els) {
+exports.each = function (context, args, iff, els) {
   if (args.length !== 1)
     throw ("Invalid number of arguments to 'each'. Expected 1, got " + args.length);
   let arg = args[0];
@@ -22,13 +22,13 @@ exports.each = function (args, iff, els) {
   }
 };
 
-exports.if = function (args, iff, els) {
+exports.if = function (context, args, iff, els) {
   if (args.length !== 1)
     throw ("Invalid number of arguments to 'each'. Expected 1, got " + args.length);
   let arg = args[0];
   if (arg) {
-    return iff({}, {});
+    return iff({}, context);
   } else {
-    els({}, {});
+    els({}, context);
   }
 };

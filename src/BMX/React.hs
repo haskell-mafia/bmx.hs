@@ -22,6 +22,8 @@ renderReactFile n t =
      "\"use strict\";\n"
   <> "\n"
   <> "var React = require('react');\n"
+  -- Needed for extending objects
+  <> "var _ = require('lodash');\n"
   <> "\n"
   <> "exports" <> renderJsArg n <> " = function(context, args, data) {\n"
        <> "  return " <> renderReact [["args"]] t <> ";\n"
@@ -67,12 +69,11 @@ renderReactStmt scope (stmt :@ _) = case stmt of
     renderPartial scope e ee h b
 
   -- Special handler that treats it as a regular block with a single ContentStmt
-  RawBlock (e :@ _) (b :@ _) ->
-    "context.helpers" <> renderJsArg (renderReactExpr scope e) <> "(\n"
+  RawBlock (e :@ el) (b :@ _) ->
+    renderSExp scope (PathL (PathID (renderReactExpr scope e) Nothing) :@ el) [] . Just $
       -- FIX Is this right, what happens if this is raw html?
-      <> "function() { return " <> b <> " },\n"
-      <> "function() { return [] }\n"
-      <> ")\n"
+      "function() { return " <> b <> "; },\n"
+        <> "function() { return []; }\n"
 
   -- Decorators are handled in a first pass, so here they are mere formatting
   DecoratorStmt (Fmt l r) a ->
@@ -131,6 +132,7 @@ renderReactExpr scope e = case e of
 renderSExp :: Scope -> Positioned Literal -> [Positioned Expr] -> Maybe Text -> Text
 renderSExp scope (l :@ _) es b =
   "context.helpers" <> renderJsArg (renderReactLiteral [] l) <> "("
+    <> scopeHead scope <> ", "
     <> "[" <> (T.intercalate ", " . fmap (\(e :@ _) -> renderReactExpr scope e)) es <> "]"
     <> maybe "" (", " <>) b
     <> ")"
@@ -189,3 +191,13 @@ renderReactPath scope p = case p of
           t' <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
   PathSeg t m ->
     t <> maybe "" (\(c, p') -> T.singleton c <> renderReactPath [] p') m
+
+scopeHead :: Scope -> Text
+scopeHead scope =
+  case scope of
+    [] ->
+      ""
+    h : _ ->
+      -- TODO Yeah this is wrong, what happens if you're eaching on an object and you only declare key?!?!
+      -- Kill me if we ever admit that 'this' is a thing
+      (fromMaybe "" . head . reverse) h
