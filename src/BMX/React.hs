@@ -21,8 +21,10 @@ renderReactFile :: Text -> Template -> Text
 renderReactFile n t =
      "\"use strict\";\n"
   <> "\n"
-  <> "exports." <> n <> " = function(context, args, data) {"
-       <> "  return " <> renderReact [["args"]] t <> ";"
+  <> "var React = require('react');\n"
+  <> "\n"
+  <> "exports" <> renderJsArg n <> " = function(context, args, data) {\n"
+       <> "  return " <> renderReact [["args"]] t <> ";\n"
        <> "};\n"
 
 renderReact :: Scope -> Template -> Text
@@ -66,11 +68,11 @@ renderReactStmt scope (stmt :@ _) = case stmt of
 
   -- Special handler that treats it as a regular block with a single ContentStmt
   RawBlock (e :@ _) (b :@ _) ->
-    "context.helpers" <> renderJsArg (renderReactExpr scope e) <> "("
+    "context.helpers" <> renderJsArg (renderReactExpr scope e) <> "(\n"
       -- FIX Is this right, what happens if this is raw html?
-      <> "function() { return " <> b <> " },"
-      <> "function() { return [] }"
-      <> ")"
+      <> "function() { return " <> b <> " },\n"
+      <> "function() { return [] }\n"
+      <> ")\n"
 
   -- Decorators are handled in a first pass, so here they are mere formatting
   DecoratorStmt (Fmt l r) a ->
@@ -83,7 +85,7 @@ renderReactStmt scope (stmt :@ _) = case stmt of
     let
       as = T.intercalate ", " . fmap (\(Attribute k v) -> k <> ": " <> "'" <> v <> "'") . fmap depo $ attr
     in
-      "React.createElement('" <> n <> "', { " <> as <> "}, " <> renderReactTemplate scope b <> ");"
+      "React.createElement('" <> n <> "', { " <> as <> "}, " <> renderReactTemplate scope b <> ")"
 
 -- FIX This can't be anything but SExp
 renderBlock ::
@@ -101,7 +103,7 @@ renderBlock scope ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
   in
     -- TODO: Worth making these helpers return a function that takes _more_ arguments?
     -- This would mean not passing in everything to renderSExp
-    renderSExp [] l es . Just $
+    renderSExp scope l es . Just $
          -- NOTE: Pass data first because we can have 0..n _named_ arguments
          "function(data, " <> args <> ") { return " <> renderReactTemplate (args' : scope) b <> " }, "
       <> "function(data, args" <> depth <> ") { return " <> renderReactTemplate scope i <> " }"
@@ -129,7 +131,7 @@ renderReactExpr scope e = case e of
 renderSExp :: Scope -> Positioned Literal -> [Positioned Expr] -> Maybe Text -> Text
 renderSExp scope (l :@ _) es b =
   "context.helpers" <> renderJsArg (renderReactLiteral [] l) <> "("
-    <> "[" <> (T.intercalate ", " . fmap (\(e :@ _) -> renderReactExpr [] e)) es <> "]"
+    <> "[" <> (T.intercalate ", " . fmap (\(e :@ _) -> renderReactExpr scope e)) es <> "]"
     <> maybe "" (", " <>) b
     <> ")"
 

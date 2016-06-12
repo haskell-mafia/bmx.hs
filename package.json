@@ -1,0 +1,17 @@
+{
+  "name": "bmx-react",
+  "version": "0.0.1",
+  "babel": {
+    "presets": [
+      "es2015"
+    ]
+  },
+  "devDependencies": {
+  },
+  "dependencies": {
+    "lodash": "^3.10.1",
+    "react": "^15.0.0",
+    "react-dom": "^15.0.0",
+    "through2": "^2.0.0"
+  }
+}

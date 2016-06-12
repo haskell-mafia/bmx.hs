@@ -60,6 +60,7 @@ library
                        BMX.Eval.Function
                        BMX.Lexer
                        BMX.Parser
+                       BMX.React
                        BMX.TH
 
                        -- Data
@@ -133,6 +134,39 @@ test-suite test
                      , deepseq
                      , dlist
 
+test-suite test-io
+  type:                exitcode-stdio-1.0
+
+  main-is:             test-io.hs
+
+  ghc-options:         -Wall
+
+  hs-source-dirs:
+
+                       test
+
+  build-depends:
+                       base                            >= 3          && < 5
+                     , ambiata-bmx
+                     , ambiata-disorder-aeson
+                     , ambiata-disorder-core
+                     , ambiata-disorder-corpus
+                     , ambiata-p
+                     , ambiata-x-aeson
+                     , QuickCheck                      >= 2.8.2 && < 2.9
+                     , quickcheck-instances            == 0.3.*
+                     , text
+                     , attoparsec
+                     , syb
+                     , containers
+                     , directory                       == 1.2.*
+                     , blaze-html
+                     , mtl
+                     , temporary                       == 1.2.*
+                     , transformers
+                     , deepseq
+                     , dlist
+                     , process                         == 1.2.*
 
 benchmark bench
   type:                exitcode-stdio-1.0
