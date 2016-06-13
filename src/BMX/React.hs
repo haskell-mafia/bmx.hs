@@ -22,8 +22,6 @@ renderReactFile n t =
      "\"use strict\";\n"
   <> "\n"
   <> "var React = require('react');\n"
-  -- Needed for extending objects
-  <> "var _ = require('lodash');\n"
   <> "\n"
   <> "exports" <> renderJsArg n <> " = function(context, args, data) {\n"
        <> "  return " <> renderReact [["args"]] t <> ";\n"
@@ -112,16 +110,23 @@ renderBlock scope ((SExp l es _) :@ _) bp (b :@ _) (i :@ _) =
 
 renderPartial :: Scope -> Positioned Expr -> Maybe (Positioned Expr) -> Positioned Hash -> Positioned Template -> Text
 renderPartial scope (e :@ _) ee (Hash hash :@ _) (b :@ _) =
-  "context.partials" <> renderJsArg (renderReactExpr [] e) <> "("
-    <> "context, "
-    -- FIX We'll need to make sure _.extend is available in some fashion.
-    -- What's the best way to do that? Define our own version somewhere?
-    <> "_.extend({}, "
+  "context.partials" <> partialName e <> "("
+    -- FIX Yuck
+    -- NOTE: We want to ignore the "new" scope here, hence the '_args' name
+    <> "{ helpers: context.helpers, partials: Object.assign({}, context.partials, { '__PARTIAL_BLOCK__': function(context, _args, data) { return " <> renderReactTemplate scope b <> "; }})}, "
+    <> "Object.assign({}, "
       <> maybe "{}" (\(ee' :@ _) -> renderReactExpr scope ee') ee <> ", "
       <> "{" <> (T.intercalate ", " . fmap (\((HashPair (k :@ _) (v :@ _)) :@ _) -> k <> ": " <> renderReactExpr scope v)) hash <> "}"
     <> "), "
-    <> "{ 'partial-block': " <> renderReactTemplate scope b <> " }"
+    <> "{ 'partial-block': '__PARTIAL_BLOCK__' }"
     <> ")"
+  where
+    partialName e' =
+      case e' of
+        Lit ((DataL _) :@ _) ->
+          "[" <> renderReactExpr [] e' <> "]"
+        _ ->
+          renderJsArg (renderReactExpr [] e')
 
 renderReactExpr :: Scope -> Expr -> Text
 renderReactExpr scope e = case e of

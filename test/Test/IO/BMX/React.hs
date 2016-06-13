@@ -77,6 +77,12 @@ prop_react_partial_block =
     [("a-b", [bmx|<div>{{> @partial-block }}</div>|])]
     []
 
+prop_react_partial_block_scope =
+  renderProp'
+    [bmx|<div>{{#>a-b}}{{c}}{{/a-b}}</div>|]
+    [("a-b", [bmx|<div>{{> @partial-block }}</div>|])]
+    [("c", BMXString "d")]
+
 -- FIX Broken due to each in bmx, not react
 {-
 prop_react_parent_scope =
