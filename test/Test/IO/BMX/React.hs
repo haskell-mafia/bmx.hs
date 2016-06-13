@@ -6,7 +6,6 @@
 module Test.IO.BMX.React where
 
 import           BMX
-import           BMX.React
 
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -114,6 +113,27 @@ prop_react_raw =
       []
       [("a", BMXString "<b>")]
     pure $ t2 === "<div><span><b></span></div>"
+
+prop_react_content_top_level =
+  testIO $ do
+    t2 <- renderReactIO
+      [bmx|{{#if a}} a {{else}} b {{/if}}|]
+      []
+      [("a", BMXBool True)]
+    pure $ t2 === "<span> a </span>"
+
+prop_react_content_top_level_2 =
+  testIO $ do
+    t2 <- renderReactIO
+      [bmx| {{a}} |]
+      []
+      [("a", BMXString "b")]
+    pure $ t2 === "<span> b </span>"
+
+prop_react_content_top_level_3 =
+  renderProp
+    [bmx|{{#if a}}<div>b</div>{{/if}}|]
+    [("a", BMXBool True)]
 
 -- FIX Broken due to each in bmx, not react
 {-

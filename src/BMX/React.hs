@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.React (
     renderReactFile
-  , renderReact
+  , renderReactTemplate
   ) where
 
 import qualified Data.Char as C
@@ -24,16 +24,20 @@ renderReactFile n t =
   <> "var React = require('react');\n"
   <> "\n"
   <> "exports" <> renderJsArg n <> " = function(context, args, data) {\n"
-       <> "  return " <> renderReact [["args"]] t <> ";\n"
+       <> "  var _e = " <> renderReactTemplate [["args"]] t <> ";\n"
+       -- If the very top level value returned is not a tag/element we need to create one
+       <> "  return React.isValidElement(_e) ? _e : React.createElement('span', {}, _e);\n"
        <> "};\n"
-
-renderReact :: Scope -> Template -> Text
-renderReact scope (Template ss) =
-  foldMap (renderReactStmt scope) ss
 
 renderReactTemplate :: Scope -> Template -> Text
 renderReactTemplate scope (Template ss) =
-  "[" <> (T.intercalate ", " . fmap (renderReactStmt scope)) ss <> "]"
+  case ss of
+    -- If we only have one statement then don't wrap in array
+    -- This is mainly to avoid having extra spans wrapping perfectly good tags
+    t : [] ->
+      renderReactStmt scope t
+    _ ->
+      "[" <> (T.intercalate ", " . fmap (renderReactStmt scope)) ss <> "]"
 
 renderReactStmt :: Scope -> Positioned Stmt -> Text
 renderReactStmt scope (stmt :@ _) = case stmt of
