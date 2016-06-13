@@ -72,6 +72,16 @@ prop_react_if =
 prop_react_if_else =
   renderProp [bmx|<div>{{#if a}}{{a}}{{else}}c{{/if}}</div>|] [("a", BMXNull)]
 
+prop_react_if_chained a b =
+  renderProp
+    [bmx|<div>{{#if a}}a{{else if b}}b{{else}}c{{/if}}</div>|]
+    [("a", BMXBool a), ("b", BMXBool b)]
+
+prop_react_inverse a =
+  renderProp
+    [bmx|<div>{{^if a}}a{{else}}b{{/if}}</div>|]
+    [("a", BMXBool a)]
+
 prop_react_partial_hash_only =
   renderProp'
     [bmx|<div>{{>a-b d=f }}</div>|]
