@@ -29,6 +29,6 @@ exports.if = function (context, args, iff, els) {
   if (arg) {
     return iff({}, context);
   } else {
-    els({}, context);
+    return els({}, context);
   }
 };
