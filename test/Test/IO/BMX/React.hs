@@ -105,6 +105,16 @@ prop_react_partial_block_scope =
     [("a-b", [bmx|<div>{{> @partial-block }}</div>|])]
     [("c", BMXString "d")]
 
+prop_react_with =
+  renderProp
+    [bmx|<div>{{#with a}}{{b}}{{/with}}</div>|]
+    [("a", BMXContext[("b", BMXString "d")])]
+
+prop_react_lookup =
+  renderProp
+    [bmx|<div>{{#with (lookup a "b")}}{{c}}{{/with}}</div>|]
+    [("a", BMXContext[("b", BMXContext[("c", BMXString "d")])])]
+
 prop_react_raw =
   -- Unfortunately because of an extra span we can't do a proper round-trip test here :(
   testIO $ do

@@ -32,3 +32,20 @@ exports.if = function (context, args, iff, els) {
     return els({}, context);
   }
 };
+
+exports.with = function (context, args, iff, els) {
+  if (args.length !== 1)
+    throw ("Invalid number of arguments to 'with'. Expected 1, got " + args.length);
+  let arg = args[0];
+  if (arg) {
+    return iff({}, arg);
+  } else {
+    return els({}, context);
+  }
+};
+
+exports.lookup = function (context, args) {
+  if (args.length !== 2)
+    throw ("Invalid number of arguments to 'lookup'. Expected 2, got " + args.length);
+  return args[0][args[1]];
+};
