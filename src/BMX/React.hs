@@ -43,9 +43,10 @@ renderReactStmt scope (stmt :@ _) = case stmt of
     "/*" <> comment <> "*/"
   Mustache _ ((SExp (l :@ _) _ _) :@ _) ->
     renderReactLiteral scope l
-  MustacheUnescaped (Fmt l r) (e :@ _) ->
+  -- FIX Can it really be a SExp?
+  MustacheUnescaped (Fmt l r) ((SExp (e :@ _) _ _) :@ _) ->
     -- FIX Be nice not to have to create a span tag
-    "React.createElement('span', {dangerouslySetInnerHTML: {__html: " <> renderReactExpr scope e <> "}})";
+    "React.createElement('span', {dangerouslySetInnerHTML: {__html: " <> renderReactLiteral scope e <> "}})";
   Block _ _ e bp b i ->
     renderBlock scope e bp b i
   Inverse _ (p :@ _) ->

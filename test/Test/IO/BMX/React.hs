@@ -32,17 +32,24 @@ renderProp t vars =
 
 renderProp' :: Template -> [(Text, Template)] -> [(Text, BMXValue)] -> Property
 renderProp' t ts vars =
-  testIO . withTempDirectory "dist" "react" $ \dir -> do
+  testIO $ do
+    let t1 = renderPage <$> renderTemplate (defaultState `usingContext` vars `usingPartials` fmap (second partialFromTemplate) ts) t
+    t2 <- renderReactIO t ts vars
+    pure $ t1 === pure t2
+
+renderReactIO :: Template -> [(Text, Template)] -> [(Text, BMXValue)] -> IO Text
+renderReactIO t ts vars =
+  withTempDirectory "dist" "react" $ \dir -> do
     let file = dir <> "/temp.hbs.js"
     T.writeFile file $ renderReactFile "test" t
     for_ ts $ \(n, t') ->
       -- QUESTION: Should we hardcode the js function name, or make it possible to merge them together?
       T.writeFile (dir <> "/" <> T.unpack n <> ".hbs.js") $ renderReactFile n t'
     T.putStrLn $ renderReactFile "test" t
-    let t1 = renderPage <$> renderTemplate (defaultState `usingContext` vars `usingPartials` fmap (second partialFromTemplate) ts) t
     _ <- readProcess "npm" ["install"] ""
-    t2 <- T.strip . T.pack <$> readProcess "bin/react-render.js" [dir, "test"] (T.unpack . asText . contextToJSON $ vars)
-    pure $ t1 === pure t2
+    T.strip . T.pack <$> readProcess "bin/react-render.js" [dir, "test"] (T.unpack . asText . contextToJSON $ vars)
+
+-------------------------------------
 
 prop_react_tag =
   renderProp [bmx|<div></div>|] []
@@ -82,6 +89,15 @@ prop_react_partial_block_scope =
     [bmx|<div>{{#>a-b}}{{c}}{{/a-b}}</div>|]
     [("a-b", [bmx|<div>{{> @partial-block }}</div>|])]
     [("c", BMXString "d")]
+
+prop_react_raw =
+  -- Unfortunately because of an extra span we can't do a proper round-trip test here :(
+  testIO $ do
+    t2 <- renderReactIO
+      [bmx|<div>{{{a}}}</div>|]
+      []
+      [("a", BMXString "<b>")]
+    pure $ t2 === "<div><span><b></span></div>"
 
 -- FIX Broken due to each in bmx, not react
 {-
