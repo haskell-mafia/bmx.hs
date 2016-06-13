@@ -63,6 +63,9 @@ prop_react_mustache =
 prop_react_each =
   renderProp [bmx|<div>{{#each a as |x|}}{{x.b}}{{/each}}</div>|] [("a", BMXList [BMXContext [("b", BMXString "c")]])]
 
+prop_react_each_else =
+  renderProp [bmx|<div>{{#each a}}x{{else}}y{{/each}}</div>|] [("a", BMXList [])]
+
 prop_react_if =
   renderProp [bmx|<div>{{#if a}}{{a}}{{else}}c{{/if}}</div>|] [("a", BMXString "b")]
 
