@@ -1,0 +1,21 @@
+[boris]
+  version = 1
+
+[build.dist-7-10]
+
+[build.branches-7-10]
+
+[build.cabal-test-7-10]
+
+[build.cabal-test-branches-7-10]
+
+[build.submodules]
+  command = [["dangling-refs"]]
+
+[build.submodules-branches]
+  command = [["dangling-refs"]]
+
+[build.validate]
+  pre = []
+  command = [["validate-respect"]]
+  success = []
