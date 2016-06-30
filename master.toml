@@ -6,7 +6,6 @@
 [build.dist-7-10]
   GHC_VERSION = "7.10.2"
   CABAL_VERSION = "1.22.4.0"
-  MAFIA_HAPPY = "true"
   BENCH = "true"
   PUBLISH_BENCH = "bmx.hs"
   HADDOCK = "true"
@@ -15,18 +14,15 @@
 [build.branches-7-10]
   GHC_VERSION = "7.10.2"
   CABAL_VERSION = "1.22.4.0"
-  MAFIA_HAPPY = "true"
   HADDOCK = "true"
   HADDOCK_S3 = "$AMBIATA_HADDOCK_BRANCHES"
 
 [build.cabal-test-7-10]
   GHC_VERSION = "7.10.2"
   CABAL_VERSION = "1.22.4.0"
-  MAFIA_HAPPY = "true"
   CABAL_TEST = "true"
 
 [build.cabal-test-branches-7-10]
   GHC_VERSION = "7.10.2"
   CABAL_VERSION = "1.22.4.0"
-  MAFIA_HAPPY = "true"
   CABAL_TEST = "true"
