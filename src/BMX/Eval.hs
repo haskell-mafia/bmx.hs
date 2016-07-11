@@ -9,7 +9,6 @@ module BMX.Eval (
   ) where
 
 import           Data.Functor.Identity (Identity)
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           System.IO (IO)
 

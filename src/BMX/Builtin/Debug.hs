@@ -4,7 +4,6 @@
 module BMX.Builtin.Debug where
 
 import           Control.Monad.IO.Class (MonadIO (..))
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           System.IO (stderr)

@@ -15,7 +15,6 @@ module BMX.Data.Page (
 import           Data.Char (isSpace)
 import           Data.DList (DList)
 import qualified Data.DList as DL
-import           Data.Text (Text)
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
 import qualified Text.Blaze.Html as B
