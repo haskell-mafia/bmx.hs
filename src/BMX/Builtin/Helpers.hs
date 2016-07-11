@@ -19,7 +19,7 @@ builtinHelpers = [
     ("noop", noop)
   , ("if", iff)
   , ("unless", unless)
-  , ("with", with)
+  , ("with", with')
   , ("lookup", lookup)
   , ("each", each)
   ]
@@ -47,8 +47,8 @@ unless = blockHelper $ \thenp elsep -> do
 -- | as the block's scope, otherwise it will use an empty scope instead.)
 -- | Alternatively, it accepts a null value, and runs the else block.
 -- | Lastly: it doesn't accept undefined values.
-with :: (Applicative m, Monad m) => Helper m
-with = blockHelper $ \thenp elsep -> do
+with' :: (Applicative m, Monad m) => Helper m
+with' = blockHelper $ \thenp elsep -> do
   val <- value
   name <- optional param
   liftBMX $ case val of
