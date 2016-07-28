@@ -30,7 +30,6 @@ module BMX (
   -- * Rendering a Template
   -- $rendering
   , renderTemplate
-  , renderTemplateIO
   , renderTemplateM
   , BMXState
   , defaultState
@@ -71,7 +70,7 @@ module BMX (
 import           BMX.Builtin (defaultState)
 import           BMX.Data
 import           BMX.Debug (debugTemplateIO)
-import           BMX.Eval (renderTemplate, renderTemplateM, renderTemplateIO, partialFromTemplate)
+import           BMX.Eval (renderTemplate, renderTemplateM, partialFromTemplate)
 import           BMX.Parser (templateFromText)
 import           BMX.TH (bmx, templateFile, partialFile, partialDir)
 

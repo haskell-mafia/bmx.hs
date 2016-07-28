@@ -5,16 +5,14 @@ module BMX.Eval (
   , partialFromTemplate
   , renderTemplate
   , renderTemplateM
-  , renderTemplateIO
   ) where
+
+import           BMX.Data
+import           BMX.Eval.Function
 
 import           Data.Functor.Identity (Identity)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           System.IO (IO)
-
-import           BMX.Data
-import           BMX.Eval.Function
 
 import           P
 
@@ -40,13 +38,6 @@ renderTemplateM bst t = either (return . Left) runIt (packState bst)
   where runIt es = do
           ep <- runBMXT es (eval t)
           return (first BMXEvalError ep)
-
--- | Apply a 'Template' to some 'BMXState', producing a 'Page'.
---
--- Helpers, partials and decorators may involve IO. Use @renderTemplate@ if
--- no IO helpers are to be invoked.
-renderTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
-renderTemplateIO bst = renderTemplateM bst
 
 -- | Produce a 'Partial' from an ordinary 'Template'.
 partialFromTemplate :: (Applicative m, Monad m) => Template -> Partial m
