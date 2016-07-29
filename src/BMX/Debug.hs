@@ -4,7 +4,7 @@ module BMX.Debug (
     debugTemplateIO
   ) where
 
-import           System.IO (IO)
+import           Control.Monad.IO.Class (MonadIO)
 
 import           BMX.Builtin
 import           BMX.Data
@@ -18,5 +18,5 @@ import           P
 -- Debugging helpers are enumerated in 'debugHelpers'.
 --
 -- Debugging helpers may perform IO. Do not use this in production.
-debugTemplateIO :: BMXState IO -> Template -> IO (Either BMXError Page)
-debugTemplateIO st = renderTemplateIO (st `usingHelpers` debugHelpers)
+debugTemplateIO :: (Applicative m, MonadIO m) => BMXState m -> Template -> m (Either BMXError Page)
+debugTemplateIO st = renderTemplateM (st `usingHelpers` debugHelpers)
