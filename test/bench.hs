@@ -10,7 +10,6 @@ import           Criterion.Main
 import           Criterion.Types (Config (..))
 
 import           Data.List ((!!), iterate)
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           P

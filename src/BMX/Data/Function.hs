@@ -24,7 +24,7 @@ module BMX.Data.Function (
 import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Data.Text (Text)
+
 import           X.Control.Monad.Trans.Either
 
 import           BMX.Data.AST

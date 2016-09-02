@@ -6,7 +6,6 @@
 module BMX.Builtin.Helpers where
 
 import           Data.List (zipWith)
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Function

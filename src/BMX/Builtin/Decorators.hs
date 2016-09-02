@@ -3,8 +3,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module BMX.Builtin.Decorators where
 
-import           Data.Text (Text)
-
 import           BMX.Data
 import           BMX.Function
 
