@@ -12,6 +12,7 @@ module BMX.Data (
   , contextToJSON
   , contextFromJSON
   , packState
+  , maybeNull
   , module X
   ) where
 
@@ -153,3 +154,6 @@ rebox v = case v of
   BMXNull -> pure NullV
   BMXList ls -> ListV <$> mapM rebox ls
   BMXContext c -> ContextV <$> boxContext c
+
+maybeNull :: (a -> BMXValue) -> Maybe a -> BMXValue
+maybeNull f = maybe BMXNull f
