@@ -47,6 +47,7 @@ module BMX (
   , usingContext
   , contextFromJSON
   , contextToJSON
+  , maybeNull
 
   -- * Partials
   -- $partials
