@@ -90,18 +90,18 @@ each = blockHelper $ \thenp elsep -> do
       eachMap c = indices 0 (fmap stepKV (contextToList c))
       eachList l = zipWith listIdx ([0..] :: [Integer]) (indices 0 (fmap step l))
       -- Apply indices, first and last markers to each action
-      indices 0 (k:[]) = [(index 0 . frst . last) k]
-      indices 0 (k:ks@(_:_)) = index 0 (frst k) : indices 1 ks
-      indices n (k:ks@(_:_)) = index n k : indices (n + 1) ks
-      indices n (k:[]) = [index n (last k)]
+      indices 0 (k:[]) = [index 0 True True k]
+      indices 0 (k:ks@(_:_)) = index 0 True False k : indices 1 ks
+      indices n (k:ks@(_:_)) = index n False False k : indices (n + 1) ks
+      indices n (k:[]) = [index n False True k]
       indices _ [] = []
       -- Register various special variables
-      index i k = withData "index" (DataValue (NumberV (realToFrac (i :: Integer)))) k
+      index i f l = frst f . last l . withData "index" (DataValue (NumberV (realToFrac (i :: Integer))))
       stepKV (k,v) = withData "key" (DataValue (StringV k))
         . withName par1 (StringV k) . withName par2 v . redefineVariable "this" v $ eval thenp
       step v = redefineVariable "this" v . withName par1 v $ eval thenp
-      frst = withData "first" (DataValue (BoolV True))
-      last = withData "last" (DataValue (BoolV True))
+      frst i = withData "first" (DataValue (BoolV i))
+      last i = withData "last" (DataValue (BoolV i))
       -- Register blockparams if they were supplied
       listIdx i k = withName par2 (NumberV (realToFrac i)) k
   liftBMX go
