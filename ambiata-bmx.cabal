@@ -13,7 +13,7 @@ description:           ambiata-bmx
 library
   build-depends:
                        base                            >= 3          && < 5
-                     , template-haskell                >= 2.8        && < 2.11
+                     , template-haskell                >= 2.8        && < 2.12
                      , transformers                    >= 0.3        && < 0.6
                      , either                          >= 4.3        && < 4.5
                      , ambiata-p
@@ -72,7 +72,7 @@ library
                        BMX.Data.Function
                        BMX.Data.Page
                        BMX.Data.Position
-                       BMX.Data.Token                       
+                       BMX.Data.Token
                        BMX.Data.Value
 
 executable bmx
