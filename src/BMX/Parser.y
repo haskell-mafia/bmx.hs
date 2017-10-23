@@ -2,6 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# OPTIONS_GHC -fno-warn-unused-imports #-}
 module BMX.Parser (
     ParseError(..)
   , parse
@@ -9,8 +10,9 @@ module BMX.Parser (
   ) where
 
 import           Data.Either
-import           Data.List (last, take)
+import           Data.List (last, take, (!!), zip, map)
 import           Data.Maybe (isJust)
+import           Data.String (String)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Safe (headMay)
