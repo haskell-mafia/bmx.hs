@@ -25,7 +25,6 @@ module BMX.Data.AST (
 import           Data.Data (Data, Typeable)
 import           Data.Serialize
 import           Data.Serialize.Text ()
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           GHC.Generics
