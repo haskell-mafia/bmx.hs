@@ -7,7 +7,6 @@ module Main where
 import           BuildInfo_ambiata_bmx
 
 import           Control.Monad.IO.Class (MonadIO (..))
-import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import           System.Directory (doesFileExist)

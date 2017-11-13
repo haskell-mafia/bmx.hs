@@ -6,7 +6,7 @@
 {-# OPTIONS_GHC -fno-warn-missing-signatures #-}
 module Test.BMX.Position where
 
-import           Data.Data (Data, Typeable)
+import           Data.Data (Data)
 import           Data.Generics.Aliases (mkT, mkQ)
 import           Data.Generics.Schemes (everywhere, everythingBut)
 import           Data.List (sort)
@@ -115,7 +115,7 @@ prop_position_no_overlap t' = case recontextualise t' of
       in ordered /= [a, b, c, d] && ordered /= [c, d, a, b]
 
 -- Pull out all nonempty lists of positioned elements
-extractPos :: (Data a, Data b, Typeable a, Typeable b) => a -> [[Positioned b]]
+extractPos :: (Data a, Data b) => a -> [[Positioned b]]
 extractPos = everythingBut (<>) (([], False) `mkQ` f)
   where
     f r@((_ :@ _):_) = ([r], True)

@@ -15,7 +15,6 @@ module BMX.Data.Value (
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Scientific (Scientific, floatingOrInteger)
-import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           P

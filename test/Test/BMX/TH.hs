@@ -8,7 +8,6 @@ module Test.BMX.TH where
 
 import Data.Functor.Identity
 import Data.List (lookup)
-import Data.Text (Text)
 import Test.QuickCheck
 
 import BMX
