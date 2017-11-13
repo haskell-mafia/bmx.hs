@@ -6,6 +6,7 @@
 module Test.BMX.Eval where
 
 import           Control.Monad.Identity (Identity)
+import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as T (toStrict)
 import           Disorder.Core

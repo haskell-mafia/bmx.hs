@@ -18,6 +18,7 @@ module BMX.Data.Error (
   , indent
   ) where
 
+import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Data.Position (SrcInfo (..), renderSrcInfo)

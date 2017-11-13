@@ -46,6 +46,7 @@ import           Control.Monad.Identity
 import           Control.Monad.Reader
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import           Data.Text (Text)
 import qualified Data.Text as T
 import           Safe (atMay, headMay, readMay)
 import           X.Control.Monad.Trans.Either

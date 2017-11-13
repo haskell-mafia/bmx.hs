@@ -11,6 +11,7 @@ import           BMX.Data
 import           BMX.Eval.Function
 
 import           Data.Functor.Identity (Identity)
+import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           P
