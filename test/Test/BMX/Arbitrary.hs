@@ -11,7 +11,6 @@ import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (nubBy, zipWith)
 import qualified Data.Map.Strict as M
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
