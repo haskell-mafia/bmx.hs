@@ -5,6 +5,7 @@
 module Test.BMX.Function where
 
 import           Control.Monad.Identity (Identity)
+import           Data.Text (Text)
 import           Test.QuickCheck
 
 import           BMX.Data

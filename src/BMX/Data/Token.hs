@@ -12,6 +12,7 @@ module BMX.Data.Token (
   ) where
 
 import           Data.Data (Data, Typeable)
+import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           BMX.Data.Format (Format (..), renderFormat)

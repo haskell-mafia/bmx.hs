@@ -30,6 +30,7 @@ import qualified Data.HashMap.Strict as H
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
 import           Data.Scientific (Scientific)
+import           Data.Text (Text)
 import           X.Data.Aeson ((.=), object)
 import qualified X.Data.Aeson as A
 

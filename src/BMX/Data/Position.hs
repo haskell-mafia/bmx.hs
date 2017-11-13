@@ -19,6 +19,7 @@ module BMX.Data.Position (
 
 import           Data.Data (Data, Typeable)
 import           Data.Serialize
+import           Data.Text (Text)
 import qualified Data.Text as T
 
 import           GHC.Generics
