@@ -9,7 +9,6 @@ module BMX.Lexer (
   ) where
 
 import           Data.Char (isSpace)
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           Text.Parsec hiding ((<|>), string, tokens, token)
 import qualified Text.Parsec as Parsec

@@ -11,7 +11,6 @@ import           Data.Generics.Aliases
 import           Data.Generics.Schemes
 import           Data.List (nubBy, zipWith)
 import qualified Data.Map.Strict as M
-import           Data.Text (Text)
 import qualified Data.Text as T
 import           Test.QuickCheck
 import           Test.QuickCheck.Instances ()
@@ -251,7 +250,7 @@ merge (Template ps) = Template (go ps)
     go [] = []
 
 -- Remove each subsequence with the same constructors as ms from ts
-subsequenceCon :: (Data a, Typeable a) => [a] -> [a] -> [[a]]
+subsequenceCon :: Data a => [a] -> [a] -> [[a]]
 subsequenceCon = dropSubsequenceBy (\t1 t2 -> toConstr t1 == toConstr t2)
 
 -- given a pred and a subsequence, remove it from the list in every possible way

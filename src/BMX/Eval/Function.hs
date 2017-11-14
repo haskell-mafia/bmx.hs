@@ -21,7 +21,6 @@ module BMX.Eval.Function (
   ) where
 
 import           Data.Scientific (Scientific)
-import           Data.Text (Text)
 
 import           BMX.Data
 
